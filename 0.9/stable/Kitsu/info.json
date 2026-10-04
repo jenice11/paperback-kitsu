@@ -1,0 +1,1 @@
+{"name":"Kitsu","description":"Extension that integrates with kitsu.app to track your manga reading progress.","version":"1.0.0-alpha.1","icon":"icon.png","language":"en","contentRating":"SAFE","capabilities":[2,32,64],"badges":[],"developers":[{"name":"jenice11","github":"https://github.com/jenice11"}],"id":"Kitsu"}

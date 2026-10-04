@@ -1,12 +1,12 @@
 {
-  "buildTime": "2026-10-04T15:58:59.958Z",
+  "buildTime": "2026-10-04T16:13:21.773Z",
   "builtWith": {
     "toolchain": "1.0.0-alpha.92",
     "types": "1.0.0-alpha.92"
   },
   "repository": {
-    "name": "Template Extensions (0.9)",
-    "description": "Paperback extensions designed as templates to help developers get started quickly. Maintained by Inkdex."
+    "name": "Kitsu Extension (0.9)",
+    "description": "Paperback 0.9 tracker extension for kitsu.app: syncs manga reading progress."
   },
   "sources": [
     {
@@ -31,6 +31,27 @@
         }
       ],
       "id": "ContentTemplate"
+    },
+    {
+      "name": "Kitsu",
+      "description": "Extension that integrates with kitsu.app to track your manga reading progress.",
+      "version": "1.0.0-alpha.1",
+      "icon": "icon.png",
+      "language": "en",
+      "contentRating": "SAFE",
+      "capabilities": [
+        2,
+        32,
+        64
+      ],
+      "badges": [],
+      "developers": [
+        {
+          "name": "jenice11",
+          "github": "https://github.com/jenice11"
+        }
+      ],
+      "id": "Kitsu"
     }
   ]
 }
