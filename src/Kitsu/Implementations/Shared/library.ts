@@ -12,7 +12,7 @@ export async function getUserId(): Promise<string> {
   }
 
   const doc = await makeRequest<JsonApiDocument<UserResource[]>>("/users", {
-    query: { "filter[self]": "true", "fields[users]": "name,slug" },
+    query: { "filter[self]": "true" },
   });
   const user = doc.data[0];
   if (user == null) {
@@ -35,7 +35,6 @@ export async function findLibraryEntry(mangaId: string): Promise<LibraryEntryRes
       "filter[kind]": "manga",
       "filter[manga_id]": mangaId,
       "page[limit]": 1,
-      "fields[libraryEntries]": "status,progress,progressedAt",
     },
   });
   return doc.data[0];

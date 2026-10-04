@@ -135,7 +135,7 @@ export async function login(username: string, password: string): Promise<Session
 
   try {
     const doc = await makeRequest<JsonApiDocument<UserResource[]>>("/users", {
-      query: { "filter[self]": "true", "fields[users]": "name,slug" },
+      query: { "filter[self]": "true" },
     });
     const user = doc.data[0];
     if (user == null) {

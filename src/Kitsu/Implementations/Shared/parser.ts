@@ -7,7 +7,7 @@ import type { KitsuImage, MangaAttributes, MangaResource } from "./models";
 export const SITE_URL = "https://kitsu.app";
 
 export function getContentRating(attributes: MangaAttributes): ContentRating {
-  if (attributes.ageRating === "R18" || attributes.nsfw === true) {
+  if (attributes.ageRating === "R18") {
     return ContentRating.ADULT;
   }
   if (attributes.ageRating === "R") {

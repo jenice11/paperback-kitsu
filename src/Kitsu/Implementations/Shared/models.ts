@@ -44,7 +44,6 @@ export interface MangaAttributes {
   chapterCount?: number | null;
   volumeCount?: number | null;
   posterImage?: KitsuImage | null;
-  nsfw?: boolean;
   serialization?: string | null;
 }
 export type MangaResource = JsonApiResource<MangaAttributes>;

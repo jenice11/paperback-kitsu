@@ -46,8 +46,6 @@ export class SearchResultsImplementation
         "filter[text]": title,
         "page[limit]": PAGE_SIZE,
         "page[offset]": offset,
-        "fields[manga]":
-          "slug,canonicalTitle,titles,abbreviatedTitles,posterImage,ageRating,nsfw,subtype",
       },
     });
 
