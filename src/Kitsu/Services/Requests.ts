@@ -11,6 +11,7 @@ import type {
 import {
   clearSession,
   getSession,
+  NOT_LOGGED_IN,
   type Session,
   setSession,
 } from "../Implementations/Shared/session";
@@ -25,9 +26,7 @@ const JSON_API = "application/vnd.api+json";
 // the expiry.
 const REFRESH_MARGIN_MS = 24 * 60 * 60 * 1000;
 
-const NOT_LOGGED_IN = "You are not logged in, please log in through the Kitsu settings";
-
-export class TokenError extends Error {
+class TokenError extends Error {
   constructor(
     message: string,
     readonly code?: string,
@@ -134,19 +133,7 @@ export async function login(username: string, password: string): Promise<Session
   setSession(partial);
 
   try {
-    const doc = await makeRequest<JsonApiDocument<UserResource[]>>("/users", {
-      query: { "filter[self]": "true" },
-    });
-    const user = doc.data[0];
-    if (user == null) {
-      throw new Error("no user on response");
-    }
-
-    const session: Session = {
-      ...partial,
-      userId: user.id,
-      username: user.attributes.name ?? user.attributes.slug,
-    };
+    const session: Session = { ...partial, ...(await fetchUser()) };
     setSession(session);
     console.log(`${logPrefix} complete`);
     return session;
@@ -158,10 +145,22 @@ export async function login(username: string, password: string): Promise<Session
   }
 }
 
+/** The logged-in account's id and display name. */
+export async function fetchUser(): Promise<{ userId: string; username: string | undefined }> {
+  const doc = await makeRequest<JsonApiDocument<UserResource[]>>("/users", {
+    query: { "filter[self]": "true" },
+  });
+  const user = doc.data[0];
+  if (user == null) {
+    throw new Error("Could not load your Kitsu account");
+  }
+  return { userId: user.id, username: user.attributes.name ?? user.attributes.slug };
+}
+
 let refreshInFlight: Promise<Session> | undefined;
 
 /** Concurrent callers share one refresh, in case Kitsu rotates refresh tokens. */
-export function refreshSession(): Promise<Session> {
+function refreshSession(): Promise<Session> {
   refreshInFlight ??= doRefresh().finally(() => {
     refreshInFlight = undefined;
   });

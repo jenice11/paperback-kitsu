@@ -16,13 +16,11 @@ export interface JsonApiError {
 
 export interface JsonApiDocument<T> {
   data: T;
-  meta?: { count?: number };
   links?: { next?: string };
   errors?: JsonApiError[];
 }
 
 export interface KitsuImage {
-  tiny?: string;
   small?: string;
   medium?: string;
   large?: string;
@@ -53,8 +51,6 @@ export type LibraryStatus = "current" | "planned" | "completed" | "on_hold" | "d
 export interface LibraryEntryAttributes {
   status?: LibraryStatus;
   progress?: number;
-  /** 2-20 in steps of 1, i.e. the 1-10 star rating doubled */
-  ratingTwenty?: number | null;
   progressedAt?: string | null;
 }
 export type LibraryEntryResource = JsonApiResource<LibraryEntryAttributes>;
@@ -68,11 +64,8 @@ export type UserResource = JsonApiResource<UserAttributes>;
 export interface TokenResponse {
   access_token: string;
   refresh_token: string;
-  token_type: string;
   /** Seconds until the access token expires (30 days by default) */
   expires_in: number;
-  created_at: number;
-  scope?: string;
 }
 
 export interface TokenErrorResponse {

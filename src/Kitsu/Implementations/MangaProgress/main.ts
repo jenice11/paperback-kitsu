@@ -47,11 +47,8 @@ export class MangaProgressImplementation implements MangaProgressProviding {
       chapNum: progress,
     };
 
-    const progressedAt = entry.attributes.progressedAt
-      ? new Date(entry.attributes.progressedAt)
-      : undefined;
-    const lastReadTime =
-      progressedAt != null && !isNaN(progressedAt.getTime()) ? progressedAt : undefined;
+    const progressedAt = new Date(entry.attributes.progressedAt ?? NaN);
+    const lastReadTime = isNaN(progressedAt.getTime()) ? undefined : progressedAt;
 
     console.log(`${logPrefix} complete: ${sourceManga.mangaId} -> chapter ${progress}`);
     return { sourceManga, lastReadChapter, lastReadTime };

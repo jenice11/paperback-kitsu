@@ -7,7 +7,6 @@ import {
   type SearchQuery,
   type SearchResultItem,
   type SearchResultsProviding,
-  type SortingOption,
 } from "@paperback/types";
 
 import { makeRequest } from "../../Services/Requests";
@@ -25,10 +24,7 @@ export class SearchResultsImplementation
   async getSearchResults(
     query: SearchQuery<Metadata>,
     metadata: Metadata | undefined,
-    sortingOption: SortingOption | undefined,
   ): Promise<PagedResults<SearchResultItem>> {
-    void sortingOption;
-
     const logPrefix = "[getSearchResults]";
     const title = query.title.trim();
     if (title.length === 0) {

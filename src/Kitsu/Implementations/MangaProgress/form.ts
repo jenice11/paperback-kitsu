@@ -6,6 +6,7 @@ import { makeRequest } from "../../Services/Requests";
 import {
   createLibraryEntry,
   findLibraryEntry,
+  toChapterCount,
   updateLibraryEntryProgress,
 } from "../Shared/library";
 import { errorText } from "../Shared/log";
@@ -42,10 +43,6 @@ export class MangaProgressForm extends Form {
   override formWillAppear(): void {
     assertMustBeAuthenticated();
     void this.loadData();
-  }
-
-  override async formDidSubmit(): Promise<void> {
-    await this.saveChanges();
   }
 
   override getSections() {
@@ -113,8 +110,7 @@ export class MangaProgressForm extends Form {
       ]);
 
       this.title = parseTitles(mangaDoc.data.attributes)[0] ?? "Unknown";
-      const count = mangaDoc.data.attributes.chapterCount;
-      this.chapterCount = typeof count === "number" && count > 0 ? count : undefined;
+      this.chapterCount = toChapterCount(mangaDoc.data.attributes.chapterCount);
 
       this.entryId = entry?.id;
       this.status = entry?.attributes.status;
@@ -133,7 +129,7 @@ export class MangaProgressForm extends Form {
     }
   }
 
-  async saveChanges(): Promise<void> {
+  override async formDidSubmit(): Promise<void> {
     const logPrefix = "[saveProgress]";
     if (this.chapter === this.initialChapter) {
       return;

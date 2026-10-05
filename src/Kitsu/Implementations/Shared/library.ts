@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
-import { makeRequest } from "../../Services/Requests";
-import type { JsonApiDocument, LibraryEntryResource, MangaResource, UserResource } from "./models";
+import { fetchUser, makeRequest } from "../../Services/Requests";
+import type { JsonApiDocument, LibraryEntryResource, MangaResource } from "./models";
 import { assertMustBeAuthenticated, getSession, setSession } from "./session";
 
 /** Kitsu library entries are keyed by user + media, so we need the user's id. */
@@ -11,20 +11,10 @@ export async function getUserId(): Promise<string> {
     return session.userId;
   }
 
-  const doc = await makeRequest<JsonApiDocument<UserResource[]>>("/users", {
-    query: { "filter[self]": "true" },
-  });
-  const user = doc.data[0];
-  if (user == null) {
-    throw new Error("Could not load your Kitsu account");
-  }
-
-  setSession({
-    ...(getSession() ?? session),
-    userId: user.id,
-    username: user.attributes.name ?? user.attributes.slug,
-  });
-  return user.id;
+  const user = await fetchUser();
+  // The request may have refreshed the tokens, so re-read before saving.
+  setSession({ ...(getSession() ?? session), ...user });
+  return user.userId;
 }
 
 export async function findLibraryEntry(mangaId: string): Promise<LibraryEntryResource | undefined> {
@@ -41,13 +31,16 @@ export async function findLibraryEntry(mangaId: string): Promise<LibraryEntryRes
 }
 
 /** `undefined` for series that are still running / have no known total. */
+export function toChapterCount(count: number | null | undefined): number | undefined {
+  return typeof count === "number" && count > 0 ? count : undefined;
+}
+
 export async function getChapterCount(mangaId: string): Promise<number | undefined> {
   const doc = await makeRequest<JsonApiDocument<MangaResource>>(
     `/manga/${encodeURIComponent(mangaId)}`,
     { auth: "optional", query: { "fields[manga]": "chapterCount" } },
   );
-  const count = doc.data.attributes.chapterCount;
-  return typeof count === "number" && count > 0 ? count : undefined;
+  return toChapterCount(doc.data.attributes.chapterCount);
 }
 
 /**

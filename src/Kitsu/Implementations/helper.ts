@@ -2,13 +2,13 @@
 /* Copyright © 2026 Inkdex */
 
 export function applyMixins(derivedCtor: any, constructors: any[]) {
-  constructors.forEach((baseCtor) => {
-    Object.getOwnPropertyNames(baseCtor.prototype).forEach((name) => {
-      Object.defineProperty(
-        derivedCtor.prototype,
-        name,
-        Object.getOwnPropertyDescriptor(baseCtor.prototype, name) || Object.create(null),
-      );
-    });
-  });
+  for (const baseCtor of constructors) {
+    for (const [name, descriptor] of Object.entries(
+      Object.getOwnPropertyDescriptors(baseCtor.prototype),
+    )) {
+      if (name !== "constructor") {
+        Object.defineProperty(derivedCtor.prototype, name, descriptor);
+      }
+    }
+  }
 }

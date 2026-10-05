@@ -3,6 +3,8 @@
 const logPrefix = "[kitsu-session]";
 const STATE_SESSION = "kitsu_session";
 
+export const NOT_LOGGED_IN = "You are not logged in, please log in through the Kitsu settings";
+
 export interface Session {
   accessToken: string;
   refreshToken: string;
@@ -48,7 +50,7 @@ export function clearSession(): void {
 export function assertMustBeAuthenticated(): Session {
   const session = getSession();
   if (session == null) {
-    throw new Error("You are not logged in, please log in through the Kitsu settings");
+    throw new Error(NOT_LOGGED_IN);
   }
   return session;
 }
