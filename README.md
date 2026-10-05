@@ -1,23 +1,15 @@
-# Kitsu tracker for Paperback 0.9
+# Kitsu Tracker Extenstion
 
 Paperback 0.9 tracker extension for [kitsu.app](https://kitsu.app). It syncs your
-**manga reading progress (chapter number)** and nothing else.
+**manga reading progress (chapter number)**.
 
 ## What it does
 
 - Log in with your Kitsu email/username and password (Kitsu only supports the OAuth
   password grant). Only tokens are stored, in Paperback's secure state, and they are
   refreshed automatically.
-- Search Kitsu manga so you can link a library title to its Kitsu entry.
-- When you read chapters, writes the highest chapter read to your Kitsu library:
-  - not in your library yet: added as **Currently reading** at that chapter
-  - already in your library: only `progress` is updated (status is left alone)
-  - progress never goes down, decimals are floored (10.5 -> 10), and progress is
-    capped at the series' chapter count (Kitsu rejects anything higher)
-- A per-title form lets you set the chapter manually.
-
-Out of scope on purpose: ratings, status changes, volumes, removing entries,
-collection import, discover sections.
+- Planned: ratings, status changes, volumes, removing entries,
+  collection import, discover sections.
 
 ## Security notes
 
@@ -31,9 +23,6 @@ collection import, discover sections.
   won't leak it.
 
 ## Install
-
-Pushing to a `0.9/<name>` branch builds and publishes the extension with GitHub Pages.
-For the `0.9/stable` branch the install page is:
 
 https://jenice11.github.io/paperback-kitsu/0.9/stable/
 

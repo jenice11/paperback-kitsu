@@ -5,7 +5,7 @@ import { ContentRating, type ExtensionInfo, SourceIntents } from "@paperback/typ
 export default {
   name: "Kitsu",
   description: "Extension that integrates with kitsu.app to track your manga reading progress.",
-  version: "1.0.0-alpha.2",
+  version: "1.0.0-alpha.3",
   icon: "icon.png",
   language: "en",
   contentRating: ContentRating.EVERYONE,
