@@ -2,17 +2,9 @@
 
 import { Form, LabelRow, Section, StepperRow } from "@paperback/types";
 
-import { makeRequest } from "../../Services/Requests";
-import {
-  createLibraryEntry,
-  findLibraryEntry,
-  toChapterCount,
-  updateLibraryEntryProgress,
-} from "../Shared/library";
+import { findLibraryEntry, getMangaSummary, saveProgress } from "../Shared/library";
 import { errorText } from "../Shared/log";
-import type { JsonApiDocument, LibraryStatus, MangaResource } from "../Shared/models";
-import { parseTitles } from "../Shared/parser";
-import { assertMustBeAuthenticated } from "../Shared/session";
+import type { LibraryStatus } from "../Shared/models";
 
 const STATUS_LABELS: Record<LibraryStatus, string> = {
   current: "Currently reading",
@@ -41,7 +33,6 @@ export class MangaProgressForm extends Form {
   override requiresExplicitSubmission = true;
 
   override formWillAppear(): void {
-    assertMustBeAuthenticated();
     void this.loadData();
   }
 
@@ -99,26 +90,19 @@ export class MangaProgressForm extends Form {
   async loadData(): Promise<void> {
     const logPrefix = "[loadProgressData]";
     try {
-      console.log(`${logPrefix} start: ${this.mangaId}`);
-
-      const [mangaDoc, entry] = await Promise.all([
-        makeRequest<JsonApiDocument<MangaResource>>(`/manga/${encodeURIComponent(this.mangaId)}`, {
-          auth: "optional",
-          query: { "fields[manga]": "canonicalTitle,titles,abbreviatedTitles,chapterCount" },
-        }),
+      const [summary, entry] = await Promise.all([
+        getMangaSummary(this.mangaId),
         findLibraryEntry(this.mangaId),
       ]);
 
-      this.title = parseTitles(mangaDoc.data.attributes)[0] ?? "Unknown";
-      this.chapterCount = toChapterCount(mangaDoc.data.attributes.chapterCount);
+      this.title = summary.title;
+      this.chapterCount = summary.chapterCount;
 
       this.entryId = entry?.id;
       this.status = entry?.attributes.status;
       this.initialChapter = entry?.attributes.progress ?? 0;
       this.chapter = this.initialChapter;
       this.error = null;
-
-      console.log(`${logPrefix} complete: ${this.mangaId}`);
     } catch (e) {
       console.log(`${logPrefix} failed: ${this.mangaId}`);
       console.log(errorText(e));
@@ -137,11 +121,7 @@ export class MangaProgressForm extends Form {
 
     try {
       console.log(`${logPrefix} ${this.mangaId}: ${this.initialChapter} -> ${this.chapter}`);
-      if (this.entryId != null) {
-        await updateLibraryEntryProgress(this.entryId, this.chapter);
-      } else {
-        await createLibraryEntry(this.mangaId, this.chapter);
-      }
+      await saveProgress(this.mangaId, this.chapter, this.entryId);
       this.initialChapter = this.chapter;
     } catch (e) {
       console.log(`${logPrefix} failed`);

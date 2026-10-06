@@ -27,10 +27,6 @@ export class LoginForm extends Form {
 
   override requiresExplicitSubmission = true;
 
-  override formWillAppear(): void {
-    this.resetFormFields();
-  }
-
   override formWillDisappear(): void {
     this.resetFormFields();
   }

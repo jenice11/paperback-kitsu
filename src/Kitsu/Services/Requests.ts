@@ -30,31 +30,31 @@ class TokenError extends Error {
   constructor(
     message: string,
     readonly code?: string,
-    readonly status?: number,
   ) {
     super(message);
   }
 }
 
-type Query = Record<string, string | number | undefined>;
+type Query = Record<string, string | number>;
 
-export interface RequestOptions {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+interface RequestOptions {
+  method?: "GET" | "POST" | "PATCH";
   query?: Query;
   body?: object;
   /**
    * required: throws if logged out (default)
    * optional: sends the token if there is one (Kitsu hides R18 titles from
    *           anonymous requests, so search and details use this)
-   * none:     never sends a token
    */
-  auth?: "required" | "optional" | "none";
+  auth?: "required" | "optional";
+  /** Use this token instead of the stored session (login, before one exists). Never retried. */
+  token?: string;
 }
 
 function buildQuery(query?: Query): string {
-  const parts = Object.entries(query ?? {})
-    .filter((entry): entry is [string, string | number] => entry[1] !== undefined)
-    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
+  const parts = Object.entries(query ?? {}).map(
+    ([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`,
+  );
   return parts.length > 0 ? `?${parts.join("&")}` : "";
 }
 
@@ -97,12 +97,12 @@ async function requestToken(params: Record<string, string>): Promise<TokenRespon
 
   if (!isOk(status)) {
     const err = (body ?? {}) as TokenErrorResponse;
-    throw new TokenError(err.error_description ?? err.error ?? `HTTP ${status}`, err.error, status);
+    throw new TokenError(err.error_description ?? err.error ?? `HTTP ${status}`, err.error);
   }
 
   const token = body as Partial<TokenResponse> | undefined;
   if (!token?.access_token || !token.refresh_token) {
-    throw new TokenError("Kitsu returned an unexpected token response", undefined, status);
+    throw new TokenError("Kitsu returned an unexpected token response");
   }
   return token as TokenResponse;
 }
@@ -125,36 +125,31 @@ export async function login(username: string, password: string): Promise<Session
     throw new Error("Unable to log in to Kitsu, please try again later");
   }
 
-  const partial: Session = {
-    accessToken: token.access_token,
-    refreshToken: token.refresh_token,
-    expiresAt: expiryOf(token),
-  };
-  setSession(partial);
-
   try {
-    const session: Session = { ...partial, ...(await fetchUser()) };
+    const doc = await makeRequest<JsonApiDocument<UserResource[]>>("/users", {
+      query: { "filter[self]": "true" },
+      token: token.access_token,
+    });
+    const user = doc.data[0];
+    if (user == null) {
+      throw new Error("no user on response");
+    }
+
+    const session: Session = {
+      accessToken: token.access_token,
+      refreshToken: token.refresh_token,
+      expiresAt: expiryOf(token),
+      userId: user.id,
+      username: user.attributes.name ?? user.attributes.slug,
+    };
     setSession(session);
     console.log(`${logPrefix} complete`);
     return session;
   } catch (e) {
     console.log(`${logPrefix} failed to load the account`);
-    console.log(errorText(e, partial.accessToken, partial.refreshToken));
-    clearSession();
+    console.log(errorText(e, token.access_token, token.refresh_token));
     throw new Error("Logged in, but could not load your Kitsu account");
   }
-}
-
-/** The logged-in account's id and display name. */
-export async function fetchUser(): Promise<{ userId: string; username: string | undefined }> {
-  const doc = await makeRequest<JsonApiDocument<UserResource[]>>("/users", {
-    query: { "filter[self]": "true" },
-  });
-  const user = doc.data[0];
-  if (user == null) {
-    throw new Error("Could not load your Kitsu account");
-  }
-  return { userId: user.id, username: user.attributes.name ?? user.attributes.slug };
 }
 
 let refreshInFlight: Promise<Session> | undefined;
@@ -239,14 +234,13 @@ function describeError(status: number, body: unknown): string {
 }
 
 export async function makeRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = "GET", query, body, auth = "required" } = options;
+  const { method = "GET", query, body, auth = "required", token: explicitToken } = options;
   const logPrefix = `[request] ${method} ${path}`;
   const url = `${EDGE_ROOT}${path}${buildQuery(query)}`;
 
   let forceRefresh = false;
   for (let attempt = 0; attempt < 2; attempt++) {
-    const token =
-      auth === "none" ? undefined : await getAccessToken(auth === "required", forceRefresh);
+    const token = explicitToken ?? (await getAccessToken(auth === "required", forceRefresh));
 
     const headers: Record<string, string> = { accept: JSON_API };
     if (body != null) {
@@ -273,7 +267,7 @@ export async function makeRequest<T>(path: string, options: RequestOptions = {})
     console.log(`${logPrefix} -> HTTP ${result.status} (${Date.now() - start}ms)`);
 
     // The token might have been revoked early; refresh once and retry.
-    if (result.status === 401 && token != null && attempt === 0) {
+    if (result.status === 401 && token != null && explicitToken == null && attempt === 0) {
       forceRefresh = true;
       continue;
     }
@@ -285,7 +279,7 @@ export async function makeRequest<T>(path: string, options: RequestOptions = {})
       throw new Error(message);
     }
 
-    if (result.body === undefined && result.status !== 204 && method !== "DELETE") {
+    if (result.body === undefined && result.status !== 204) {
       throw new Error("Unable to parse the response from Kitsu");
     }
     return result.body as T;
