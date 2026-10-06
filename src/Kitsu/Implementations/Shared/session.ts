@@ -10,7 +10,7 @@ export interface Session {
   refreshToken: string;
   /** Epoch milliseconds at which the access token expires */
   expiresAt: number;
-  userId?: string;
+  userId: string;
   username?: string;
 }
 
@@ -22,7 +22,11 @@ export function getSession(): Session | undefined {
 
   try {
     const parsed = JSON.parse(String(raw)) as Partial<Session>;
-    if (typeof parsed.accessToken !== "string" || typeof parsed.refreshToken !== "string") {
+    if (
+      typeof parsed.accessToken !== "string" ||
+      typeof parsed.refreshToken !== "string" ||
+      typeof parsed.userId !== "string"
+    ) {
       throw new Error("malformed session");
     }
     return {

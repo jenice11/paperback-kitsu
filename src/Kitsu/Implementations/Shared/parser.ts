@@ -4,9 +4,9 @@ import { ContentRating, type MangaInfo, type SearchResultItem } from "@paperback
 
 import type { KitsuImage, MangaAttributes, MangaResource } from "./models";
 
-export const SITE_URL = "https://kitsu.app";
+const SITE_URL = "https://kitsu.app";
 
-export function getContentRating(attributes: MangaAttributes): ContentRating {
+function getContentRating(attributes: MangaAttributes): ContentRating {
   if (attributes.ageRating === "R18") {
     return ContentRating.ADULT;
   }
@@ -17,7 +17,7 @@ export function getContentRating(attributes: MangaAttributes): ContentRating {
 }
 
 /** Canonical title first, then every other distinct title Kitsu knows about. */
-export function parseTitles(attributes: MangaAttributes): string[] {
+function parseTitles(attributes: MangaAttributes): string[] {
   const all = [
     attributes.canonicalTitle,
     attributes.titles?.en,
@@ -27,6 +27,10 @@ export function parseTitles(attributes: MangaAttributes): string[] {
   ].filter((title): title is string => typeof title === "string" && title.trim().length > 0);
 
   return [...new Set(all)];
+}
+
+export function primaryTitle(attributes: MangaAttributes): string {
+  return parseTitles(attributes)[0] ?? "Unknown";
 }
 
 function pickImage(image: KitsuImage | null | undefined, order: (keyof KitsuImage)[]): string {
@@ -57,7 +61,6 @@ function parseStatus(status: string | null | undefined): string {
 
 export function parseMangaInfo(manga: MangaResource): MangaInfo {
   const a = manga.attributes;
-  const titles = parseTitles(a);
 
   // Kitsu's average rating is a percentage string ("82.28"); Paperback wants 0-1.
   const percent = a.averageRating != null ? Number(a.averageRating) : NaN;
@@ -69,8 +72,8 @@ export function parseMangaInfo(manga: MangaResource): MangaInfo {
   if (a.serialization) additionalInfo["Serialization"] = a.serialization;
 
   return {
-    primaryTitle: titles[0] ?? "Unknown",
-    secondaryTitles: titles.slice(1),
+    primaryTitle: primaryTitle(a),
+    secondaryTitles: parseTitles(a).slice(1),
     synopsis: a.synopsis ?? "",
     thumbnailUrl: pickImage(a.posterImage, ["large", "medium", "original", "small"]),
     status: parseStatus(a.status),
@@ -84,11 +87,10 @@ export function parseMangaInfo(manga: MangaResource): MangaInfo {
 
 export function parseSearchResult(manga: MangaResource): SearchResultItem {
   const a = manga.attributes;
-  const titles = parseTitles(a);
 
   return {
     mangaId: manga.id,
-    title: titles[0] ?? "Unknown",
+    title: primaryTitle(a),
     subtitle: a.subtype ?? undefined,
     imageUrl: pickImage(a.posterImage, ["medium", "small", "large", "original"]),
     contentRating: getContentRating(a),
