@@ -1,10 +1,29 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
-import { Form, LabelRow, Section, StepperRow } from "@paperback/types";
+import {
+  Form,
+  InputRow,
+  LabelRow,
+  NavigationRow,
+  Section,
+  SelectForm,
+  StepperRow,
+} from "@paperback/types";
 
-import { findLibraryEntry, getMangaSummary, saveProgress } from "../Shared/library";
-import { errorText } from "../Shared/log";
-import type { LibraryStatus } from "../Shared/models";
+import { logError } from "../../Services/log";
+import type { LibraryStatus } from "../../Services/models";
+import {
+  autoDates,
+  DEFAULT_LIBRARY_STATUS,
+  findLibraryEntry,
+  getMangaSummary,
+  saveLibraryEntry,
+  type LibraryChanges,
+} from "../Shared/library";
+import { parseDateText, toDateText } from "../Shared/parser";
+
+// Running series have no known chapter total; give the stepper a high ceiling.
+const MAX_CHAPTERS_WHEN_UNKNOWN = 99999;
 
 const STATUS_LABELS: Record<LibraryStatus, string> = {
   current: "Currently reading",
@@ -14,37 +33,60 @@ const STATUS_LABELS: Record<LibraryStatus, string> = {
   dropped: "Dropped",
 };
 
+// Record keys keep Kitsu's own order of lists.
+const STATUS_ITEMS = Object.entries(STATUS_LABELS).map(([id, title]) => ({ id, title }));
+
+function isLibraryStatus(id: string): id is LibraryStatus {
+  return Object.hasOwn(STATUS_LABELS, id);
+}
+
 export class MangaProgressForm extends Form {
+  override requiresExplicitSubmission = true;
+
   loading = true;
-  error: Error | null = null;
+  error: Error | undefined;
 
   title = "";
   chapterCount: number | undefined;
   entryId: string | undefined;
+  /** The list the user has picked; undefined until known or picked. */
   status: LibraryStatus | undefined;
+  initialStatus: LibraryStatus | undefined;
 
   initialChapter = 0;
   chapter = 0;
+
+  // Dates are `YYYY-MM-DD` text the user types; Paperback forms have no date picker.
+  initialStartedAt = "";
+  startedAt = "";
+  initialFinishedAt = "";
+  finishedAt = "";
+
+  private loaded = false;
 
   constructor(private readonly mangaId: string) {
     super();
   }
 
-  override requiresExplicitSubmission = true;
-
   override formWillAppear(): void {
+    // The host shows the form again when a picker screen closes. Loading again
+    // would throw away what the user just picked.
+    if (this.loaded) {
+      return;
+    }
+    this.loaded = true;
     void this.loadData();
   }
 
   override getSections() {
     if (this.loading) {
-      return [Section("loading", [LabelRow("loading", { title: "Loading..." })])];
+      return [Section({ id: "loading" }, [LabelRow("loading", { title: "Loading..." })])];
     }
 
     if (this.error != null) {
       return [
-        Section("error", [
-          LabelRow("error", { title: "Error", subtitle: String(this.error.message) }),
+        Section({ id: "error" }, [
+          LabelRow("error", { title: "Error", subtitle: this.error.message }),
         ]),
       ];
     }
@@ -52,30 +94,62 @@ export class MangaProgressForm extends Form {
     return [
       Section({ id: "information", header: "Information" }, [
         LabelRow("title", { title: "Title", value: this.title }),
-        LabelRow("status", {
-          title: "Library status",
-          value: this.status != null ? STATUS_LABELS[this.status] : "Not in your library",
+      ]),
+      Section(
+        {
+          id: "library",
+          header: "Library",
+          footer:
+            this.entryId == null
+              ? `Not in your library yet. Pick a list, or saving a chapter adds it as ${STATUS_LABELS[DEFAULT_LIBRARY_STATUS]}.`
+              : "",
+        },
+        [
+          // Like SelectRow, but nothing is selected while the title has no list.
+          NavigationRow("status", {
+            title: "List",
+            value: this.status != null ? STATUS_LABELS[this.status] : "Not selected",
+            form: new SelectForm("List", {
+              title: "List",
+              value: this.status != null ? [this.status] : [],
+              // The picker refuses to open with fewer values than this.
+              minItemCount: this.status != null ? 1 : 0,
+              maxItemCount: 1,
+              layout: "list",
+              items: STATUS_ITEMS,
+              onValueChange: Application.Selector(this as MangaProgressForm, "setStatus"),
+            }),
+          }),
+        ],
+      ),
+      Section({ id: "progress", header: "Progress" }, [
+        StepperRow("chapter", {
+          title: "Chapters",
+          subtitle: "The highest read chapter number",
+          value: this.chapter,
+          minValue: 0,
+          maxValue: this.chapterCount ?? MAX_CHAPTERS_WHEN_UNKNOWN,
+          stepValue: 1,
+          loopOver: false,
+          onValueChange: Application.Selector(this as MangaProgressForm, "setChapter"),
         }),
       ]),
       Section(
         {
-          id: "progress",
-          header: "Progress",
-          footer:
-            this.entryId == null
-              ? "Saving adds this title to your Kitsu library as currently reading."
-              : "",
+          id: "dates",
+          header: "Dates",
+          footer: "Type YYYY-MM-DD. Leave empty for no date.",
         },
         [
-          StepperRow("chapter", {
-            title: "Chapters",
-            subtitle: "The highest read chapter number",
-            value: this.chapter,
-            minValue: 0,
-            maxValue: this.chapterCount ?? 99999,
-            stepValue: 1,
-            loopOver: false,
-            onValueChange: Application.Selector(this as MangaProgressForm, "setChapter"),
+          InputRow("startedAt", {
+            title: "Started",
+            value: this.startedAt,
+            onValueChange: Application.Selector(this as MangaProgressForm, "setStartedAt"),
+          }),
+          InputRow("finishedAt", {
+            title: "Finished",
+            value: this.finishedAt,
+            onValueChange: Application.Selector(this as MangaProgressForm, "setFinishedAt"),
           }),
         ],
       ),
@@ -87,7 +161,23 @@ export class MangaProgressForm extends Form {
     this.reloadForm();
   }
 
-  async loadData(): Promise<void> {
+  async setStartedAt(value: string): Promise<void> {
+    this.startedAt = value;
+  }
+
+  async setFinishedAt(value: string): Promise<void> {
+    this.finishedAt = value;
+  }
+
+  async setStatus(value: string[]): Promise<void> {
+    const [id] = value;
+    if (id != null && isLibraryStatus(id)) {
+      this.status = id;
+    }
+    this.reloadForm();
+  }
+
+  private async loadData(): Promise<void> {
     const logPrefix = "[loadProgressData]";
     try {
       const [summary, entry] = await Promise.all([
@@ -100,13 +190,17 @@ export class MangaProgressForm extends Form {
 
       this.entryId = entry?.id;
       this.status = entry?.attributes.status;
+      this.initialStatus = this.status;
       this.initialChapter = entry?.attributes.progress ?? 0;
       this.chapter = this.initialChapter;
-      this.error = null;
+      this.initialStartedAt = toDateText(entry?.attributes.startedAt);
+      this.startedAt = this.initialStartedAt;
+      this.initialFinishedAt = toDateText(entry?.attributes.finishedAt);
+      this.finishedAt = this.initialFinishedAt;
+      this.error = undefined;
     } catch (e) {
-      console.log(`${logPrefix} failed: ${this.mangaId}`);
-      console.log(errorText(e));
-      this.error = e as Error;
+      logError(`${logPrefix} failed: ${this.mangaId}`, e);
+      this.error = e instanceof Error ? e : new Error(String(e));
     } finally {
       this.loading = false;
       this.reloadForm();
@@ -114,19 +208,52 @@ export class MangaProgressForm extends Form {
   }
 
   override async formDidSubmit(): Promise<void> {
-    const logPrefix = "[saveProgress]";
-    if (this.chapter === this.initialChapter) {
+    const logPrefix = "[saveLibraryEntry]";
+
+    const changes: LibraryChanges = {};
+    if (this.chapter !== this.initialChapter) {
+      changes.progress = this.chapter;
+    }
+    if (this.status != null && this.status !== this.initialStatus) {
+      changes.status = this.status;
+    }
+    // Parsing throws on a bad date, before anything is sent.
+    if (this.startedAt.trim() !== this.initialStartedAt) {
+      changes.startedAt = parseDateText(this.startedAt);
+    }
+    if (this.finishedAt.trim() !== this.initialFinishedAt) {
+      changes.finishedAt = parseDateText(this.finishedAt);
+    }
+    if (Object.keys(changes).length === 0) {
       return;
     }
 
-    try {
-      console.log(`${logPrefix} ${this.mangaId}: ${this.initialChapter} -> ${this.chapter}`);
-      await saveProgress(this.mangaId, this.chapter, this.entryId);
-      this.initialChapter = this.chapter;
-    } catch (e) {
-      console.log(`${logPrefix} failed`);
-      console.log(errorText(e));
-      throw e;
+    // A title with no entry yet has no list or dates to compare with.
+    const before =
+      this.entryId == null
+        ? undefined
+        : {
+            status: this.initialStatus,
+            startedAt: this.initialStartedAt,
+            finishedAt: this.initialFinishedAt,
+          };
+    Object.assign(changes, autoDates(before, changes));
+
+    console.log(`${logPrefix} ${this.mangaId}: ${JSON.stringify(changes)}`);
+    // makeRequest logs failures itself; the host shows the thrown error.
+    this.entryId = await saveLibraryEntry(this.mangaId, this.entryId, changes);
+    this.initialChapter = this.chapter;
+    // A new entry went onto the default list when no other was picked.
+    this.status ??= DEFAULT_LIBRARY_STATUS;
+    this.initialStatus = this.status;
+    // Show dates as Kitsu has them now, filled-in ones included.
+    if (changes.startedAt !== undefined) {
+      this.startedAt = toDateText(changes.startedAt);
     }
+    if (changes.finishedAt !== undefined) {
+      this.finishedAt = toDateText(changes.finishedAt);
+    }
+    this.initialStartedAt = this.startedAt;
+    this.initialFinishedAt = this.finishedAt;
   }
 }

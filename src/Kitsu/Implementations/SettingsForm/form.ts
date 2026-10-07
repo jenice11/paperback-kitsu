@@ -10,22 +10,22 @@ import {
   Section,
 } from "@paperback/types";
 
-import { login } from "../../Services/Requests";
-import { clearSession, getSession } from "../Shared/session";
+import { login } from "../../Services/requests";
+import { clearSession, getSession } from "../../Services/session";
 
 interface LoginInput {
   username: string;
   password: string;
 }
 
-export class LoginForm extends Form {
+class LoginForm extends Form {
+  override requiresExplicitSubmission = true;
+
   loginForm: LoginInput = { username: "", password: "" };
 
   constructor(private readonly onLoggedIn: () => void) {
     super();
   }
-
-  override requiresExplicitSubmission = true;
 
   override formWillDisappear(): void {
     this.resetFormFields();
@@ -73,12 +73,11 @@ export class LoginForm extends Form {
     }
 
     await login(username, password);
-    // Don't keep the password in memory any longer than the request needs.
     this.resetFormFields();
     this.onLoggedIn();
   }
 
-  resetFormFields(): void {
+  private resetFormFields(): void {
     this.loginForm = { username: "", password: "" };
   }
 }
@@ -86,10 +85,10 @@ export class LoginForm extends Form {
 export class SettingsForm extends Form {
   override getSections() {
     const session = getSession();
-    return session == null ? this.unauthenticatedView() : this.authenticatedView(session.username);
+    return session == null ? this.unauthenticatedView() : this.getProfileSection(session.username);
   }
 
-  unauthenticatedView(): ListSectionElement[] {
+  private unauthenticatedView(): ListSectionElement[] {
     return [
       Section(
         {
@@ -106,15 +105,13 @@ export class SettingsForm extends Form {
     ];
   }
 
-  authenticatedView(username: string | undefined): ListSectionElement[] {
+  private getProfileSection(username: string | undefined): ListSectionElement[] {
     return [
       Section({ id: "profile-section", header: "Profile" }, [
         LabelRow("user-name", {
-          title: "Logged in as",
+          title: "Username",
           value: username ?? "-",
         }),
-      ]),
-      Section({ id: "session-section" }, [
         ButtonRow("logout-button", {
           title: "Log out",
           onSelect: Application.Selector(this as SettingsForm, "logOut"),

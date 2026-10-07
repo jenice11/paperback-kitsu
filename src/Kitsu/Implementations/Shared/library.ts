@@ -1,13 +1,53 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
-import { makeRequest } from "../../Services/Requests";
-import type { JsonApiDocument, LibraryEntryResource, MangaResource } from "./models";
-import { primaryTitle } from "./parser";
-import { assertMustBeAuthenticated } from "./session";
+import type {
+  JsonApiDocument,
+  LibraryEntryResource,
+  LibraryStatus,
+  MangaResource,
+} from "../../Services/models";
+import { makeRequest } from "../../Services/requests";
+import { requireSession } from "../../Services/session";
+import { parsePrimaryTitle, todayTimestamp } from "./parser";
+
+/** The list a title lands on when the user did not pick one. */
+export const DEFAULT_LIBRARY_STATUS: LibraryStatus = "current";
+
+/** The parts of a library entry the user can change. */
+export interface LibraryChanges {
+  progress?: number;
+  status?: LibraryStatus;
+  /** Kitsu timestamps; null clears the date. */
+  startedAt?: string | null;
+  finishedAt?: string | null;
+}
+
+/**
+ * Dates to add when a write moves a title onto a list: today as the start date
+ * on Currently reading, today as the finish date on Completed. A date that is
+ * already set, or that this write sets itself, is left alone. `before` is the
+ * entry as it is now, undefined for a title that is not in the library.
+ */
+export function autoDates(
+  before: Omit<LibraryChanges, "progress"> | undefined,
+  changes: LibraryChanges,
+): Pick<LibraryChanges, "startedAt" | "finishedAt"> {
+  const status = changes.status ?? before?.status ?? DEFAULT_LIBRARY_STATUS;
+  if (status === before?.status) {
+    return {};
+  }
+  if (status === "current" && changes.startedAt === undefined && !before?.startedAt) {
+    return { startedAt: todayTimestamp() };
+  }
+  if (status === "completed" && changes.finishedAt === undefined && !before?.finishedAt) {
+    return { finishedAt: todayTimestamp() };
+  }
+  return {};
+}
 
 // Kitsu library entries are keyed by user + media, hence the session's userId.
 export async function findLibraryEntry(mangaId: string): Promise<LibraryEntryResource | undefined> {
-  const { userId } = assertMustBeAuthenticated();
+  const { userId } = requireSession();
   const doc = await makeRequest<JsonApiDocument<LibraryEntryResource[]>>("/library-entries", {
     query: {
       "filter[user_id]": userId,
@@ -32,21 +72,22 @@ export async function getMangaSummary(
   );
   const { chapterCount } = doc.data.attributes;
   return {
-    title: primaryTitle(doc.data.attributes),
+    title: parsePrimaryTitle(doc.data.attributes),
     // Series that are still running have no known total.
     chapterCount: typeof chapterCount === "number" && chapterCount > 0 ? chapterCount : undefined,
   };
 }
 
 /**
- * Writes `progress` to the user's library: updates entry `entryId`, or adds the
- * title as currently reading when there is no entry yet.
+ * Writes `changes` to the user's library: updates entry `entryId`, or adds the
+ * title (on the chosen list, else currently reading) when there is no entry
+ * yet. Returns the id of the entry that was written.
  */
-export async function saveProgress(
+export async function saveLibraryEntry(
   mangaId: string,
-  progress: number,
   entryId: string | undefined,
-): Promise<void> {
+  changes: LibraryChanges,
+): Promise<string> {
   if (entryId != null) {
     await makeRequest(`/library-entries/${encodeURIComponent(entryId)}`, {
       method: "PATCH",
@@ -54,20 +95,24 @@ export async function saveProgress(
         data: {
           type: "libraryEntries",
           id: entryId,
-          attributes: { progress },
+          attributes: changes,
         },
       },
     });
-    return;
+    return entryId;
   }
 
-  const { userId } = assertMustBeAuthenticated();
-  await makeRequest("/library-entries", {
+  const { userId } = requireSession();
+  const doc = await makeRequest<JsonApiDocument<LibraryEntryResource>>("/library-entries", {
     method: "POST",
     body: {
       data: {
         type: "libraryEntries",
-        attributes: { status: "current", progress },
+        attributes: {
+          ...changes,
+          status: changes.status ?? DEFAULT_LIBRARY_STATUS,
+          progress: changes.progress ?? 0,
+        },
         relationships: {
           user: { data: { type: "users", id: userId } },
           media: { data: { type: "manga", id: mangaId } },
@@ -75,6 +120,7 @@ export async function saveProgress(
       },
     },
   });
+  return doc.data.id;
 }
 
 /**
@@ -115,5 +161,9 @@ export async function syncReadChapters(mangaId: string, chapterNums: number[]): 
       ? `${logPrefix} ${mangaId}: ${current} -> ${target}`
       : `${logPrefix} ${mangaId}: adding to library at ${target}`,
   );
-  await saveProgress(mangaId, target, entry?.id);
+  const changes: LibraryChanges = { progress: target };
+  await saveLibraryEntry(mangaId, entry?.id, {
+    ...changes,
+    ...autoDates(entry?.attributes, changes),
+  });
 }

@@ -1,20 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
-import { errorText, redact } from "../Implementations/Shared/log";
-import type {
-  JsonApiDocument,
-  JsonApiError,
-  TokenErrorResponse,
-  TokenResponse,
-  UserResource,
-} from "../Implementations/Shared/models";
-import {
-  clearSession,
-  getSession,
-  NOT_LOGGED_IN,
-  type Session,
-  setSession,
-} from "../Implementations/Shared/session";
+import type { Request } from "@paperback/types";
+
+import { logError, redact } from "./log";
+import type { JsonApiDocument, TokenErrorResponse, TokenResponse, UserResource } from "./models";
+import { clearSession, getSession, NOT_LOGGED_IN, type Session, setSession } from "./session";
 
 const API_ROOT = "https://kitsu.app/api";
 const EDGE_ROOT = `${API_ROOT}/edge`;
@@ -58,12 +48,7 @@ function buildQuery(query?: Query): string {
   return parts.length > 0 ? `?${parts.join("&")}` : "";
 }
 
-async function send(request: {
-  url: string;
-  method: string;
-  headers: Record<string, string>;
-  body?: string;
-}): Promise<{ status: number; body: unknown }> {
+async function send(request: Request): Promise<{ status: number; body: unknown }> {
   const [response, buffer] = await Application.scheduleRequest(request);
   const text = Application.arrayBufferToUTF8String(buffer);
 
@@ -146,8 +131,7 @@ export async function login(username: string, password: string): Promise<Session
     console.log(`${logPrefix} complete`);
     return session;
   } catch (e) {
-    console.log(`${logPrefix} failed to load the account`);
-    console.log(errorText(e, token.access_token, token.refresh_token));
+    logError(`${logPrefix} failed to load the account`, e, token.access_token, token.refresh_token);
     throw new Error("Logged in, but could not load your Kitsu account");
   }
 }
@@ -225,7 +209,7 @@ async function getAccessToken(
 // API
 
 function describeError(status: number, body: unknown): string {
-  const errors = (body as { errors?: JsonApiError[] } | undefined)?.errors;
+  const errors = (body as Partial<JsonApiDocument<unknown>> | undefined)?.errors;
   const first = Array.isArray(errors) ? errors[0] : undefined;
   const detail = first?.detail ?? first?.title;
   return detail
@@ -260,8 +244,7 @@ export async function makeRequest<T>(path: string, options: RequestOptions = {})
         body: body != null ? JSON.stringify(body) : undefined,
       });
     } catch (e) {
-      console.log(`${logPrefix} failed: request error`);
-      console.log(errorText(e, token));
+      logError(`${logPrefix} failed: request error`, e, token);
       throw new Error("Unable to reach Kitsu, please check your connection");
     }
     console.log(`${logPrefix} -> HTTP ${result.status} (${Date.now() - start}ms)`);
@@ -285,5 +268,6 @@ export async function makeRequest<T>(path: string, options: RequestOptions = {})
     return result.body as T;
   }
 
-  throw new Error(NOT_LOGGED_IN);
+  // Not reachable: the second attempt always returns or throws above.
+  throw new Error("Request retry loop ended without a result");
 }

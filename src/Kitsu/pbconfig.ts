@@ -21,4 +21,4 @@ export default {
       github: "https://github.com/jenice11",
     },
   ],
-} as ExtensionInfo;
+} satisfies ExtensionInfo;

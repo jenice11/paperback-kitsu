@@ -27,7 +27,17 @@ export function redact(text: string, ...extraSecrets: (string | undefined)[]): s
 }
 
 /** One-line, redacted description of a caught value. No stack traces. */
-export function errorText(e: unknown, ...extraSecrets: (string | undefined)[]): string {
+function errorText(e: unknown, ...extraSecrets: (string | undefined)[]): string {
   const text = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
   return redact(text, ...extraSecrets);
+}
+
+/** Logs `message`, then the redacted error on its own line. */
+export function logError(
+  message: string,
+  e: unknown,
+  ...extraSecrets: (string | undefined)[]
+): void {
+  console.log(message);
+  console.log(errorText(e, ...extraSecrets));
 }

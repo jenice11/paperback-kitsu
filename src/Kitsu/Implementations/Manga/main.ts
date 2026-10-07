@@ -2,8 +2,8 @@
 
 import type { SourceManga } from "@paperback/types";
 
-import { makeRequest } from "../../Services/Requests";
-import type { JsonApiDocument, MangaResource } from "../Shared/models";
+import type { JsonApiDocument, MangaResource } from "../../Services/models";
+import { makeRequest } from "../../Services/requests";
 import { parseMangaInfo } from "../Shared/parser";
 
 export async function getMangaDetails(mangaId: string): Promise<SourceManga> {
