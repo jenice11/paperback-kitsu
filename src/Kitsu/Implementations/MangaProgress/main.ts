@@ -9,14 +9,14 @@ import type {
   TrackedMangaChapterReadAction,
 } from "@paperback/types";
 
+import { logError } from "../../Services/log";
+import { requireSession } from "../../Services/session";
 import { findLibraryEntry, syncReadChapters } from "../Shared/library";
-import { errorText } from "../Shared/log";
-import { assertMustBeAuthenticated } from "../Shared/session";
 import { MangaProgressForm } from "./form";
 
 export async function getMangaProgressManagementForm(sourceManga: SourceManga): Promise<Form> {
   // Refuse up front rather than opening a form that can only show an error.
-  assertMustBeAuthenticated();
+  requireSession();
   return new MangaProgressForm(sourceManga.mangaId);
 }
 
@@ -54,7 +54,12 @@ export async function processChapterReadActionQueue(
   const byManga = new Map<string, TrackedMangaChapterReadAction[]>();
   for (const action of actions) {
     const key = action.sourceManga.mangaId;
-    byManga.set(key, [...(byManga.get(key) ?? []), action]);
+    const group = byManga.get(key);
+    if (group != null) {
+      group.push(action);
+    } else {
+      byManga.set(key, [action]);
+    }
   }
 
   // Kitsu has no bulk endpoint, so go one manga at a time. A failure only
@@ -68,8 +73,7 @@ export async function processChapterReadActionQueue(
       );
       successfulItems.push(...ids);
     } catch (e) {
-      console.log(`${logPrefix} failed for manga ${mangaId}`);
-      console.log(errorText(e));
+      logError(`${logPrefix} failed for manga ${mangaId}`, e);
       failedItems.push(...ids);
     }
   }

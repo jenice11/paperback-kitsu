@@ -24,10 +24,10 @@ import { SettingsForm } from "./Implementations/SettingsForm/form";
 
 // The host calls these methods on the extension object; the logic lives in
 // plain functions next to the screens that use it.
-export class KitsuExtension
+class KitsuExtension
   implements Extension, SearchResultsProviding, SettingsFormProviding, MangaProgressProviding
 {
-  mainRateLimiter = new BasicRateLimiter("main", {
+  private readonly mainRateLimiter = new BasicRateLimiter("main", {
     numberOfRequests: 4,
     bufferInterval: 1,
     ignoreImages: true,

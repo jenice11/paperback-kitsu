@@ -2,7 +2,7 @@
 
 // Minimal JSON:API + Kitsu typings; only the fields this extension reads.
 
-export interface JsonApiResource<A> {
+interface JsonApiResource<A> {
   id: string;
   type: string;
   attributes: A;
@@ -48,14 +48,16 @@ export type MangaResource = JsonApiResource<MangaAttributes>;
 
 export type LibraryStatus = "current" | "planned" | "completed" | "on_hold" | "dropped";
 
-export interface LibraryEntryAttributes {
+interface LibraryEntryAttributes {
   status?: LibraryStatus;
   progress?: number;
   progressedAt?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
 }
 export type LibraryEntryResource = JsonApiResource<LibraryEntryAttributes>;
 
-export interface UserAttributes {
+interface UserAttributes {
   name?: string;
   slug?: string;
 }

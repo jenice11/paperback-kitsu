@@ -2,11 +2,12 @@
 
 import { ContentRating, type MangaInfo, type SearchResultItem } from "@paperback/types";
 
-import type { KitsuImage, MangaAttributes, MangaResource } from "./models";
+import type { KitsuImage, MangaAttributes, MangaResource } from "../../Services/models";
 
 const SITE_URL = "https://kitsu.app";
+const UNKNOWN_TITLE = "Unknown";
 
-function getContentRating(attributes: MangaAttributes): ContentRating {
+function parseContentRating(attributes: MangaAttributes): ContentRating {
   if (attributes.ageRating === "R18") {
     return ContentRating.ADULT;
   }
@@ -29,8 +30,8 @@ function parseTitles(attributes: MangaAttributes): string[] {
   return [...new Set(all)];
 }
 
-export function primaryTitle(attributes: MangaAttributes): string {
-  return parseTitles(attributes)[0] ?? "Unknown";
+export function parsePrimaryTitle(attributes: MangaAttributes): string {
+  return parseTitles(attributes)[0] ?? UNKNOWN_TITLE;
 }
 
 function pickImage(image: KitsuImage | null | undefined, order: (keyof KitsuImage)[]): string {
@@ -66,19 +67,29 @@ export function parseMangaInfo(manga: MangaResource): MangaInfo {
   const percent = a.averageRating != null ? Number(a.averageRating) : NaN;
 
   const additionalInfo: Record<string, string> = {};
-  if (a.subtype) additionalInfo["Type"] = a.subtype;
-  if (a.chapterCount) additionalInfo["Chapters"] = String(a.chapterCount);
-  if (a.volumeCount) additionalInfo["Volumes"] = String(a.volumeCount);
-  if (a.serialization) additionalInfo["Serialization"] = a.serialization;
+  if (a.subtype) {
+    additionalInfo["Type"] = a.subtype;
+  }
+  if (a.chapterCount) {
+    additionalInfo["Chapters"] = String(a.chapterCount);
+  }
+  if (a.volumeCount) {
+    additionalInfo["Volumes"] = String(a.volumeCount);
+  }
+  if (a.serialization) {
+    additionalInfo["Serialization"] = a.serialization;
+  }
+
+  const [primaryTitle = UNKNOWN_TITLE, ...secondaryTitles] = parseTitles(a);
 
   return {
-    primaryTitle: primaryTitle(a),
-    secondaryTitles: parseTitles(a).slice(1),
+    primaryTitle,
+    secondaryTitles,
     synopsis: a.synopsis ?? "",
     thumbnailUrl: pickImage(a.posterImage, ["large", "medium", "original", "small"]),
     status: parseStatus(a.status),
     rating: Number.isFinite(percent) ? percent / 100 : undefined,
-    contentRating: getContentRating(a),
+    contentRating: parseContentRating(a),
     contentType: a.subtype === "novel" ? "novel" : "comic",
     additionalInfo,
     shareUrl: a.slug ? `${SITE_URL}/manga/${a.slug}` : undefined,
@@ -90,9 +101,40 @@ export function parseSearchResult(manga: MangaResource): SearchResultItem {
 
   return {
     mangaId: manga.id,
-    title: primaryTitle(a),
+    title: parsePrimaryTitle(a),
     subtitle: a.subtype ?? undefined,
     imageUrl: pickImage(a.posterImage, ["medium", "small", "large", "original"]),
-    contentRating: getContentRating(a),
+    contentRating: parseContentRating(a),
   };
+}
+
+/** Kitsu timestamp to `YYYY-MM-DD` (UTC), or "" when the date is not set. */
+export function toDateText(iso: string | null | undefined): string {
+  return iso?.slice(0, 10) ?? "";
+}
+
+/** `YYYY-MM-DD` to a Kitsu timestamp; "" gives null, which clears the date. */
+export function parseDateText(text: string): string | null {
+  const trimmed = text.trim();
+  if (trimmed === "") {
+    return null;
+  }
+  const date = new Date(`${trimmed}T00:00:00Z`);
+  // Comparing back rejects dates JS would roll over, like 2026-02-31.
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(trimmed) ||
+    Number.isNaN(date.getTime()) ||
+    date.toISOString().slice(0, 10) !== trimmed
+  ) {
+    throw new Error(`"${trimmed}" is not a valid date. Use YYYY-MM-DD.`);
+  }
+  return date.toISOString();
+}
+
+/** Today on the user's own calendar, as a Kitsu timestamp. */
+export function todayTimestamp(): string {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}T00:00:00.000Z`;
 }

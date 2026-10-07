@@ -8,8 +8,8 @@ import {
   type SearchResultItem,
 } from "@paperback/types";
 
-import { makeRequest } from "../../Services/Requests";
-import type { JsonApiDocument, MangaResource } from "../Shared/models";
+import type { JsonApiDocument, MangaResource } from "../../Services/models";
+import { makeRequest } from "../../Services/requests";
 import { parseSearchResult } from "../Shared/parser";
 
 // Kitsu allows at most 20 resources per page on this route.
