@@ -46,12 +46,17 @@ export interface MangaAttributes {
 }
 export type MangaResource = JsonApiResource<MangaAttributes>;
 
-export type LibraryStatus = "current" | "planned" | "completed" | "on_hold" | "dropped";
+export type LibraryStatus =
+  "current" | "planned" | "completed" | "on_hold" | "dropped";
 
 interface LibraryEntryAttributes {
   status?: LibraryStatus;
   progress?: number;
   progressedAt?: string | null;
+  /** Volumes the user owns; Kitsu has no volumes-read field. */
+  volumesOwned?: number;
+  /** How many times the user has reread the title. */
+  reconsumeCount?: number;
   startedAt?: string | null;
   finishedAt?: string | null;
 }

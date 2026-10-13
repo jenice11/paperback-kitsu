@@ -14,9 +14,9 @@ import { logError } from "../../Services/log";
 import type { LibraryStatus } from "../../Services/models";
 import {
   autoDates,
-  DEFAULT_LIBRARY_STATUS,
   findLibraryEntry,
   getMangaSummary,
+  newEntryStatus,
   saveLibraryEntry,
   type LibraryChanges,
 } from "../Shared/library";
@@ -24,6 +24,8 @@ import { parseDateText, toDateText } from "../Shared/parser";
 
 // Running series have no known chapter total; give the stepper a high ceiling.
 const MAX_CHAPTERS_WHEN_UNKNOWN = 99999;
+// Volumes and rereads have no known limit.
+const MAX_COUNT = 99999;
 
 const STATUS_LABELS: Record<LibraryStatus, string> = {
   current: "Currently reading",
@@ -34,7 +36,10 @@ const STATUS_LABELS: Record<LibraryStatus, string> = {
 };
 
 // Record keys keep Kitsu's own order of lists.
-const STATUS_ITEMS = Object.entries(STATUS_LABELS).map(([id, title]) => ({ id, title }));
+const STATUS_ITEMS = Object.entries(STATUS_LABELS).map(([id, title]) => ({
+  id,
+  title,
+}));
 
 function isLibraryStatus(id: string): id is LibraryStatus {
   return Object.hasOwn(STATUS_LABELS, id);
@@ -55,6 +60,10 @@ export class MangaProgressForm extends Form {
 
   initialChapter = 0;
   chapter = 0;
+  initialVolumes = 0;
+  volumes = 0;
+  initialRereads = 0;
+  rereads = 0;
 
   // Dates are `YYYY-MM-DD` text the user types; Paperback forms have no date picker.
   initialStartedAt = "";
@@ -80,7 +89,11 @@ export class MangaProgressForm extends Form {
 
   override getSections() {
     if (this.loading) {
-      return [Section({ id: "loading" }, [LabelRow("loading", { title: "Loading..." })])];
+      return [
+        Section({ id: "loading" }, [
+          LabelRow("loading", { title: "Loading..." }),
+        ]),
+      ];
     }
 
     if (this.error != null) {
@@ -101,14 +114,15 @@ export class MangaProgressForm extends Form {
           header: "Library",
           footer:
             this.entryId == null
-              ? `Not in your library yet. Pick a list, or saving a chapter adds it as ${STATUS_LABELS[DEFAULT_LIBRARY_STATUS]}.`
+              ? `Not in your library yet. Pick a list, or saving with a chapter read adds it as ${STATUS_LABELS.current}, otherwise as ${STATUS_LABELS.planned}.`
               : "",
         },
         [
           // Like SelectRow, but nothing is selected while the title has no list.
           NavigationRow("status", {
             title: "List",
-            value: this.status != null ? STATUS_LABELS[this.status] : "Not selected",
+            value:
+              this.status != null ? STATUS_LABELS[this.status] : "Not selected",
             form: new SelectForm("List", {
               title: "List",
               value: this.status != null ? [this.status] : [],
@@ -117,7 +131,10 @@ export class MangaProgressForm extends Form {
               maxItemCount: 1,
               layout: "list",
               items: STATUS_ITEMS,
-              onValueChange: Application.Selector(this as MangaProgressForm, "setStatus"),
+              onValueChange: Application.Selector(
+                this as MangaProgressForm,
+                "setStatus",
+              ),
             }),
           }),
         ],
@@ -131,7 +148,36 @@ export class MangaProgressForm extends Form {
           maxValue: this.chapterCount ?? MAX_CHAPTERS_WHEN_UNKNOWN,
           stepValue: 1,
           loopOver: false,
-          onValueChange: Application.Selector(this as MangaProgressForm, "setChapter"),
+          onValueChange: Application.Selector(
+            this as MangaProgressForm,
+            "setChapter",
+          ),
+        }),
+        StepperRow("volumes", {
+          title: "Volumes owned",
+          subtitle: "The number of volumes you own",
+          value: this.volumes,
+          minValue: 0,
+          maxValue: MAX_COUNT,
+          stepValue: 1,
+          loopOver: false,
+          onValueChange: Application.Selector(
+            this as MangaProgressForm,
+            "setVolumes",
+          ),
+        }),
+        StepperRow("rereads", {
+          title: "Reread count",
+          subtitle: "The amount of times you have reread the title",
+          value: this.rereads,
+          minValue: 0,
+          maxValue: MAX_COUNT,
+          stepValue: 1,
+          loopOver: false,
+          onValueChange: Application.Selector(
+            this as MangaProgressForm,
+            "setRereads",
+          ),
         }),
       ]),
       Section(
@@ -144,12 +190,18 @@ export class MangaProgressForm extends Form {
           InputRow("startedAt", {
             title: "Started",
             value: this.startedAt,
-            onValueChange: Application.Selector(this as MangaProgressForm, "setStartedAt"),
+            onValueChange: Application.Selector(
+              this as MangaProgressForm,
+              "setStartedAt",
+            ),
           }),
           InputRow("finishedAt", {
             title: "Finished",
             value: this.finishedAt,
-            onValueChange: Application.Selector(this as MangaProgressForm, "setFinishedAt"),
+            onValueChange: Application.Selector(
+              this as MangaProgressForm,
+              "setFinishedAt",
+            ),
           }),
         ],
       ),
@@ -158,6 +210,16 @@ export class MangaProgressForm extends Form {
 
   async setChapter(chapter: number): Promise<void> {
     this.chapter = chapter;
+    this.reloadForm();
+  }
+
+  async setVolumes(volumes: number): Promise<void> {
+    this.volumes = volumes;
+    this.reloadForm();
+  }
+
+  async setRereads(rereads: number): Promise<void> {
+    this.rereads = rereads;
     this.reloadForm();
   }
 
@@ -193,6 +255,10 @@ export class MangaProgressForm extends Form {
       this.initialStatus = this.status;
       this.initialChapter = entry?.attributes.progress ?? 0;
       this.chapter = this.initialChapter;
+      this.initialVolumes = entry?.attributes.volumesOwned ?? 0;
+      this.volumes = this.initialVolumes;
+      this.initialRereads = entry?.attributes.reconsumeCount ?? 0;
+      this.rereads = this.initialRereads;
       this.initialStartedAt = toDateText(entry?.attributes.startedAt);
       this.startedAt = this.initialStartedAt;
       this.initialFinishedAt = toDateText(entry?.attributes.finishedAt);
@@ -214,6 +280,12 @@ export class MangaProgressForm extends Form {
     if (this.chapter !== this.initialChapter) {
       changes.progress = this.chapter;
     }
+    if (this.volumes !== this.initialVolumes) {
+      changes.volumesOwned = this.volumes;
+    }
+    if (this.rereads !== this.initialRereads) {
+      changes.reconsumeCount = this.rereads;
+    }
     if (this.status != null && this.status !== this.initialStatus) {
       changes.status = this.status;
     }
@@ -228,23 +300,19 @@ export class MangaProgressForm extends Form {
       return;
     }
 
-    // A title with no entry yet has no list or dates to compare with.
-    const before =
-      this.entryId == null
-        ? undefined
-        : {
-            status: this.initialStatus,
-            startedAt: this.initialStartedAt,
-            finishedAt: this.initialFinishedAt,
-          };
-    Object.assign(changes, autoDates(before, changes));
+    // Kitsu may have changed since the form opened: use its entry as it is now.
+    const latest = await findLibraryEntry(this.mangaId);
+    this.entryId = latest?.id;
+    Object.assign(changes, autoDates(latest?.attributes, changes));
 
     console.log(`${logPrefix} ${this.mangaId}: ${JSON.stringify(changes)}`);
     // makeRequest logs failures itself; the host shows the thrown error.
     this.entryId = await saveLibraryEntry(this.mangaId, this.entryId, changes);
     this.initialChapter = this.chapter;
+    this.initialVolumes = this.volumes;
+    this.initialRereads = this.rereads;
     // A new entry went onto the default list when no other was picked.
-    this.status ??= DEFAULT_LIBRARY_STATUS;
+    this.status ??= changes.status ?? newEntryStatus(changes.progress);
     this.initialStatus = this.status;
     // Show dates as Kitsu has them now, filled-in ones included.
     if (changes.startedAt !== undefined) {

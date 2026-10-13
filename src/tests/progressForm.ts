@@ -34,14 +34,24 @@ function startHost(entry: object | undefined): Request[] {
       scheduleRequest: async (request: Request) => {
         sent.push(request);
         let body: object = { data: {} };
-        if (request.method === "GET" && request.url.includes("/library-entries")) {
+        if (
+          request.method === "GET" &&
+          request.url.includes("/library-entries")
+        ) {
           body = { data: entry ? [entry] : [] };
-        } else if (request.method === "GET" && request.url.includes("/manga/")) {
+        } else if (
+          request.method === "GET" &&
+          request.url.includes("/manga/")
+        ) {
           body = {
             data: {
               id: "m1",
               type: "manga",
-              attributes: { canonicalTitle: "Test", titles: {}, chapterCount: 100 },
+              attributes: {
+                canonicalTitle: "Test",
+                titles: {},
+                chapterCount: 100,
+              },
             },
           };
         } else if (request.method === "POST") {
@@ -69,21 +79,26 @@ async function comeBack(form: MangaProgressForm): Promise<void> {
   await settle();
 }
 
-function writes(sent: Request[]): { method: string; url: string; attributes: object }[] {
+function writes(
+  sent: Request[],
+): { method: string; url: string; attributes: object }[] {
   return sent
     .filter((r) => r.method === "PATCH" || r.method === "POST")
     .map((r) => ({
       method: r.method,
       url: r.url,
-      attributes: (JSON.parse(r.body as string) as { data: { attributes: object } }).data
-        .attributes,
+      attributes: (
+        JSON.parse(r.body as string) as { data: { attributes: object } }
+      ).data.attributes,
     }));
 }
 
 function statusRow(form: MangaProgressForm): { value?: unknown; form: Form } {
   for (const section of form.getSections()) {
     for (const row of (
-      section as unknown as { items: { id: string; value?: unknown; form: Form }[] }
+      section as unknown as {
+        items: { id: string; value?: unknown; form: Form }[];
+      }
     ).items) {
       if (row.id === "status") {
         return row;
@@ -108,7 +123,11 @@ function openList(form: MangaProgressForm): void {
   await comeBack(form);
   await form.formDidSubmit();
   expect(writes(sent)).to.deep.equal([
-    { method: "PATCH", url: `${URL_ENTRIES}/e1`, attributes: { status: "planned" } },
+    {
+      method: "PATCH",
+      url: `${URL_ENTRIES}/e1`,
+      attributes: { status: "planned" },
+    },
   ]);
 }
 
@@ -124,7 +143,11 @@ function openList(form: MangaProgressForm): void {
   openList(form);
   await form.formDidSubmit();
   expect(writes(sent)).to.deep.equal([
-    { method: "POST", url: URL_ENTRIES, attributes: { status: "planned", progress: 0 } },
+    {
+      method: "POST",
+      url: URL_ENTRIES,
+      attributes: { status: "planned", progress: 0 },
+    },
   ]);
 }
 
@@ -139,6 +162,40 @@ function openList(form: MangaProgressForm): void {
       method: "POST",
       url: URL_ENTRIES,
       attributes: { progress: 3, status: "current", startedAt: today },
+    },
+  ]);
+}
+
+// Volumes owned and reread count: only what changed is sent, and a second Done sends nothing.
+{
+  const sent = startHost({
+    ...entry("current", { startedAt: OLD }),
+    attributes: {
+      status: "current",
+      progress: 5,
+      startedAt: OLD,
+      volumesOwned: 2,
+      reconsumeCount: 1,
+    },
+  });
+  const form = await open();
+  expect(form.volumes).to.equal(2);
+  expect(form.rereads).to.equal(1);
+  await form.setVolumes(3);
+  await form.formDidSubmit();
+  await form.setRereads(2);
+  await form.formDidSubmit();
+  await form.formDidSubmit();
+  expect(writes(sent)).to.deep.equal([
+    {
+      method: "PATCH",
+      url: `${URL_ENTRIES}/e1`,
+      attributes: { volumesOwned: 3 },
+    },
+    {
+      method: "PATCH",
+      url: `${URL_ENTRIES}/e1`,
+      attributes: { reconsumeCount: 2 },
     },
   ]);
 }
@@ -164,7 +221,10 @@ function openList(form: MangaProgressForm): void {
   await form.setStatus(["current"]);
   await comeBack(form);
   await form.formDidSubmit();
-  expect(writes(sent)[0]?.attributes).to.deep.equal({ status: "current", startedAt: today });
+  expect(writes(sent)[0]?.attributes).to.deep.equal({
+    status: "current",
+    startedAt: today,
+  });
 }
 // A date that is already set stays.
 {
@@ -200,7 +260,7 @@ function openList(form: MangaProgressForm): void {
   } catch (e) {
     message = e instanceof Error ? e.message : "";
   }
-  expect(message).to.contain("is not a valid date");
+  expect(message).to.contain("is not a date");
   expect(writes(sent)).to.have.length(0);
 }
 
@@ -217,12 +277,14 @@ function openList(form: MangaProgressForm): void {
   } catch (e) {
     message = e instanceof Error ? e.message : "";
   }
-  expect(message).to.contain("is not a valid date");
+  expect(message).to.contain("is not a date");
   expect(writes(sent)).to.have.length(0);
   expect(form.startedAt).to.equal("2026-12-cx");
   await form.setStartedAt("2026-12-05");
   await form.formDidSubmit();
-  expect(writes(sent)[0]?.attributes).to.deep.equal({ startedAt: "2026-12-05T00:00:00.000Z" });
+  expect(writes(sent)[0]?.attributes).to.deep.equal({
+    startedAt: "2026-12-05T00:00:00.000Z",
+  });
 }
 
 // A bad date is refused before anything is sent.
@@ -236,7 +298,7 @@ function openList(form: MangaProgressForm): void {
   } catch (e) {
     message = e instanceof Error ? e.message : "";
   }
-  expect(message).to.contain("is not a valid  date");
+  expect(message).to.contain("is not a date");
   expect(writes(sent)).to.have.length(0);
 }
 
@@ -252,12 +314,89 @@ function openList(form: MangaProgressForm): void {
     },
   ]);
 }
-// ...but moves no title between lists and sets no dates once it has an entry.
-for (const status of ["current", "planned"]) {
+// Chapter 0 only (a prologue) adds it as Plan to read, progress 0.
+{
+  const sent = startHost(undefined);
+  await syncReadChapters("m1", [0]);
+  expect(writes(sent)).to.deep.equal([
+    {
+      method: "POST",
+      url: URL_ENTRIES,
+      attributes: { progress: 0, status: "planned" },
+    },
+  ]);
+}
+// An entry already Currently reading, On hold or Dropped keeps its list and dates.
+for (const status of ["current", "on_hold", "dropped"]) {
   const sent = startHost(entry(status));
   await syncReadChapters("m1", [7]);
   expect(writes(sent)).to.deep.equal([
     { method: "PATCH", url: `${URL_ENTRIES}/e1`, attributes: { progress: 7 } },
+  ]);
+}
+// Plan to read moves to Currently reading, started today, when a chapter moves progress...
+{
+  const sent = startHost(entry("planned"));
+  await syncReadChapters("m1", [7]);
+  expect(writes(sent)).to.deep.equal([
+    {
+      method: "PATCH",
+      url: `${URL_ENTRIES}/e1`,
+      attributes: { progress: 7, status: "current", startedAt: today },
+    },
+  ]);
+}
+// ...and also when Kitsu already holds progress and the chapter read is not higher.
+{
+  const sent = startHost(entry("planned"));
+  await syncReadChapters("m1", [3]);
+  expect(writes(sent)).to.deep.equal([
+    {
+      method: "PATCH",
+      url: `${URL_ENTRIES}/e1`,
+      attributes: { status: "current", startedAt: today },
+    },
+  ]);
+}
+// Plan to read with no progress and no chapter read stays where it is.
+{
+  const sent = startHost({
+    ...entry("planned"),
+    attributes: { status: "planned", progress: 0 },
+  });
+  await syncReadChapters("m1", [0]);
+  expect(writes(sent)).to.have.length(0);
+}
+
+// Done asks Kitsu for the entry first: one made elsewhere since the form opened is
+// updated, never added a second time, and its list decides the date rule.
+{
+  startHost(undefined);
+  const form = await open();
+  const sent = startHost(entry("planned"));
+  await form.setChapter(2);
+  await form.setStatus(["current"]);
+  await form.formDidSubmit();
+  expect(writes(sent)).to.deep.equal([
+    {
+      method: "PATCH",
+      url: `${URL_ENTRIES}/e1`,
+      attributes: { progress: 2, status: "current", startedAt: today },
+    },
+  ]);
+}
+// A new entry with no chapter and no list picked goes on Plan to read.
+{
+  const sent = startHost(undefined);
+  const form = await open();
+  await form.setVolumes(2);
+  await form.formDidSubmit();
+  expect(writes(sent)).to.deep.equal([
+    {
+      method: "POST",
+      url: URL_ENTRIES,
+      attributes: { volumesOwned: 2, status: "planned", progress: 0 },
+    },
   ]);
 }
 
