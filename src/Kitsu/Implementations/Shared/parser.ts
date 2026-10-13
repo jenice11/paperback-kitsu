@@ -126,7 +126,7 @@ export function parseDateText(text: string): string | null {
     Number.isNaN(date.getTime()) ||
     date.toISOString().slice(0, 10) !== trimmed
   ) {
-    throw new Error(`"${trimmed}" is not a valid date. Use YYYY-MM-DD.`);
+    throw new Error(`"${trimmed}" is not a date. Use YYYY-MM-DD.`);
   }
   return date.toISOString();
 }
