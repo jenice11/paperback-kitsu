@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
-import { getSession } from "./session";
+import { session } from "../Implementations/Shared/parser/main";
 
 /**
  * Anything that can end up in a log line or an error shown to the user but
@@ -17,8 +17,8 @@ export function redact(text: string, ...extraSecrets: (string | undefined)[]): s
       "$1***",
     );
 
-  const session = getSession();
-  for (const secret of [session?.accessToken, session?.refreshToken, ...extraSecrets]) {
+  const current = session.getSession();
+  for (const secret of [current?.accessToken, current?.refreshToken, ...extraSecrets]) {
     if (secret && secret.length >= 4) {
       out = out.split(secret).join("***");
     }

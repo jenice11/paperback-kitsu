@@ -4,9 +4,8 @@
 import type { Form, Request } from "@paperback/types";
 import { expect } from "chai";
 
-import { MangaProgressForm } from "../Kitsu/Implementations/MangaProgress/form";
-import { syncReadChapters } from "../Kitsu/Implementations/Shared/library";
-import { todayTimestamp } from "../Kitsu/Implementations/Shared/parser";
+import { MangaProgressForm } from "../Kitsu/Implementations/MangaProgress/form.js";
+import { syncReadChapters, todayTimestamp } from "../Kitsu/Implementations/Shared/library.js";
 
 const entry = (status: string, dates: object = {}) => ({
   id: "e1",
@@ -34,15 +33,9 @@ function startHost(entry: object | undefined): Request[] {
       scheduleRequest: async (request: Request) => {
         sent.push(request);
         let body: object = { data: {} };
-        if (
-          request.method === "GET" &&
-          request.url.includes("/library-entries")
-        ) {
+        if (request.method === "GET" && request.url.includes("/library-entries")) {
           body = { data: entry ? [entry] : [] };
-        } else if (
-          request.method === "GET" &&
-          request.url.includes("/manga/")
-        ) {
+        } else if (request.method === "GET" && request.url.includes("/manga/")) {
           body = {
             data: {
               id: "m1",
@@ -79,17 +72,14 @@ async function comeBack(form: MangaProgressForm): Promise<void> {
   await settle();
 }
 
-function writes(
-  sent: Request[],
-): { method: string; url: string; attributes: object }[] {
+function writes(sent: Request[]): { method: string; url: string; attributes: object }[] {
   return sent
     .filter((r) => r.method === "PATCH" || r.method === "POST")
     .map((r) => ({
       method: r.method,
       url: r.url,
-      attributes: (
-        JSON.parse(r.body as string) as { data: { attributes: object } }
-      ).data.attributes,
+      attributes: (JSON.parse(r.body as string) as { data: { attributes: object } }).data
+        .attributes,
     }));
 }
 

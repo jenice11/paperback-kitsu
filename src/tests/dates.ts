@@ -2,12 +2,12 @@
 //   npx rolldown src/tests/dates.ts --platform node --file /tmp/dates.mjs && node /tmp/dates.mjs
 import { expect } from "chai";
 
-import { autoDates } from "../Kitsu/Implementations/Shared/library";
 import {
+  autoDates,
   parseDateText,
   toDateText,
   todayTimestamp,
-} from "../Kitsu/Implementations/Shared/parser";
+} from "../Kitsu/Implementations/Shared/library.js";
 
 expect(toDateText("2024-05-01T12:34:56.000Z")).to.equal("2024-05-01");
 expect(toDateText(null)).to.equal("");
@@ -17,13 +17,7 @@ expect(parseDateText("")).to.equal(null);
 expect(parseDateText("   ")).to.equal(null);
 expect(parseDateText(" 2026-02-28 ")).to.equal("2026-02-28T00:00:00.000Z");
 expect(parseDateText("2024-02-29")).to.equal("2024-02-29T00:00:00.000Z");
-for (const bad of [
-  "2026-02-31",
-  "2025-02-29",
-  "2026-13-01",
-  "2026-1-5",
-  "tomorrow",
-]) {
+for (const bad of ["2026-02-31", "2025-02-29", "2026-13-01", "2026-1-5", "tomorrow"]) {
   expect(() => parseDateText(bad), bad).to.throw();
 }
 
@@ -43,28 +37,18 @@ expect(autoDates(undefined, { status: "planned" })).to.deep.equal({});
 expect(autoDates(undefined, { status: "completed" })).to.deep.equal({
   finishedAt: today,
 });
-expect(
-  autoDates(undefined, { status: "current", startedAt: old }),
-).to.deep.equal({});
-expect(
-  autoDates(undefined, { status: "current", startedAt: null }),
-).to.deep.equal({});
-expect(
-  autoDates({ status: "planned", startedAt: null }, { status: "current" }),
-).to.deep.equal({
+expect(autoDates(undefined, { status: "current", startedAt: old })).to.deep.equal({});
+expect(autoDates(undefined, { status: "current", startedAt: null })).to.deep.equal({});
+expect(autoDates({ status: "planned", startedAt: null }, { status: "current" })).to.deep.equal({
   startedAt: today,
 });
-expect(
-  autoDates({ status: "planned", startedAt: old }, { status: "current" }),
-).to.deep.equal({});
+expect(autoDates({ status: "planned", startedAt: old }, { status: "current" })).to.deep.equal({});
 expect(autoDates({ status: "current" }, { progress: 3 })).to.deep.equal({});
-expect(
-  autoDates({ status: "current", finishedAt: null }, { status: "completed" }),
-).to.deep.equal({
+expect(autoDates({ status: "current", finishedAt: null }, { status: "completed" })).to.deep.equal({
   finishedAt: today,
 });
-expect(
-  autoDates({ status: "completed", finishedAt: old }, { status: "dropped" }),
-).to.deep.equal({});
+expect(autoDates({ status: "completed", finishedAt: old }, { status: "dropped" })).to.deep.equal(
+  {},
+);
 
 console.log("dates ok");
