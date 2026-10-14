@@ -2,9 +2,14 @@
 
 import type { Request } from "@paperback/types";
 
+import type {
+  JsonApiDocument,
+  TokenErrorResponse,
+  TokenResponse,
+  UserResource,
+} from "../Implementations/Shared/models/main";
+import { session } from "../Implementations/Shared/parser/main";
 import { logError, redact } from "./log";
-import type { JsonApiDocument, TokenErrorResponse, TokenResponse, UserResource } from "./models";
-import { clearSession, getSession, NOT_LOGGED_IN, type Session, setSession } from "./session";
 
 const API_ROOT = "https://kitsu.app/api";
 const EDGE_ROOT = `${API_ROOT}/edge`;
@@ -96,7 +101,7 @@ function expiryOf(token: TokenResponse): number {
   return Date.now() + (Number(token.expires_in) || 0) * 1000;
 }
 
-export async function login(username: string, password: string): Promise<Session> {
+export async function login(username: string, password: string): Promise<session.Session> {
   const logPrefix = "[login]";
 
   let token: TokenResponse;
@@ -120,37 +125,37 @@ export async function login(username: string, password: string): Promise<Session
       throw new Error("no user on response");
     }
 
-    const session: Session = {
+    const created: session.Session = {
       accessToken: token.access_token,
       refreshToken: token.refresh_token,
       expiresAt: expiryOf(token),
       userId: user.id,
       username: user.attributes.name ?? user.attributes.slug,
     };
-    setSession(session);
+    session.setSession(created);
     console.log(`${logPrefix} complete`);
-    return session;
+    return created;
   } catch (e) {
     logError(`${logPrefix} failed to load the account`, e, token.access_token, token.refresh_token);
     throw new Error("Logged in, but could not load your Kitsu account");
   }
 }
 
-let refreshInFlight: Promise<Session> | undefined;
+let refreshInFlight: Promise<session.Session> | undefined;
 
 /** Concurrent callers share one refresh, in case Kitsu rotates refresh tokens. */
-function refreshSession(): Promise<Session> {
+function refreshSession(): Promise<session.Session> {
   refreshInFlight ??= doRefresh().finally(() => {
     refreshInFlight = undefined;
   });
   return refreshInFlight;
 }
 
-async function doRefresh(): Promise<Session> {
+async function doRefresh(): Promise<session.Session> {
   const logPrefix = "[refreshSession]";
-  const current = getSession();
+  const current = session.getSession();
   if (current == null) {
-    throw new Error(NOT_LOGGED_IN);
+    throw new Error(session.NOT_LOGGED_IN);
   }
 
   try {
@@ -158,13 +163,13 @@ async function doRefresh(): Promise<Session> {
       grant_type: "refresh_token",
       refresh_token: current.refreshToken,
     });
-    const next: Session = {
+    const next: session.Session = {
       ...current,
       accessToken: token.access_token,
       refreshToken: token.refresh_token,
       expiresAt: expiryOf(token),
     };
-    setSession(next);
+    session.setSession(next);
     console.log(`${logPrefix} complete`);
     return next;
   } catch (e) {
@@ -172,7 +177,7 @@ async function doRefresh(): Promise<Session> {
     // Only drop the session when Kitsu says the refresh token is dead. A
     // network blip shouldn't log the user out.
     if (e instanceof TokenError && e.code === "invalid_grant") {
-      clearSession();
+      session.clearSession();
       throw new Error("Your Kitsu session has expired, please log in again through the settings");
     }
     throw new Error("Unable to refresh your Kitsu session, please try again later");
@@ -183,16 +188,16 @@ async function getAccessToken(
   required: boolean,
   forceRefresh: boolean,
 ): Promise<string | undefined> {
-  const session = getSession();
-  if (session == null) {
+  const current = session.getSession();
+  if (current == null) {
     if (required) {
-      throw new Error(NOT_LOGGED_IN);
+      throw new Error(session.NOT_LOGGED_IN);
     }
     return undefined;
   }
 
-  if (!forceRefresh && Date.now() < session.expiresAt - REFRESH_MARGIN_MS) {
-    return session.accessToken;
+  if (!forceRefresh && Date.now() < current.expiresAt - REFRESH_MARGIN_MS) {
+    return current.accessToken;
   }
 
   try {

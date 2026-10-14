@@ -1,14 +1,13 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
+import { makeRequest } from "../../Services/Requests";
 import type {
   JsonApiDocument,
   LibraryEntryResource,
   LibraryStatus,
   MangaResource,
-} from "../../Services/models";
-import { makeRequest } from "../../Services/requests";
-import { requireSession } from "../../Services/session";
-import { parsePrimaryTitle, todayTimestamp } from "./parser";
+} from "./models/main";
+import { manga, session } from "./parser/main";
 
 /** The list a new entry lands on when none was picked: Currently reading once a chapter is read. */
 export function newEntryStatus(progress = 0): LibraryStatus {
@@ -36,44 +35,30 @@ export function autoDates(
   before: Omit<LibraryChanges, "progress"> | undefined,
   changes: LibraryChanges,
 ): Pick<LibraryChanges, "startedAt" | "finishedAt"> {
-  const status =
-    changes.status ?? before?.status ?? newEntryStatus(changes.progress);
+  const status = changes.status ?? before?.status ?? newEntryStatus(changes.progress);
   if (status === before?.status) {
     return {};
   }
-  if (
-    status === "current" &&
-    changes.startedAt === undefined &&
-    !before?.startedAt
-  ) {
+  if (status === "current" && changes.startedAt === undefined && !before?.startedAt) {
     return { startedAt: todayTimestamp() };
   }
-  if (
-    status === "completed" &&
-    changes.finishedAt === undefined &&
-    !before?.finishedAt
-  ) {
+  if (status === "completed" && changes.finishedAt === undefined && !before?.finishedAt) {
     return { finishedAt: todayTimestamp() };
   }
   return {};
 }
 
 // Kitsu library entries are keyed by user + media, hence the session's userId.
-export async function findLibraryEntry(
-  mangaId: string,
-): Promise<LibraryEntryResource | undefined> {
-  const { userId } = requireSession();
-  const doc = await makeRequest<JsonApiDocument<LibraryEntryResource[]>>(
-    "/library-entries",
-    {
-      query: {
-        "filter[user_id]": userId,
-        "filter[kind]": "manga",
-        "filter[manga_id]": mangaId,
-        "page[limit]": 1,
-      },
+export async function findLibraryEntry(mangaId: string): Promise<LibraryEntryResource | undefined> {
+  const { userId } = session.requireSession();
+  const doc = await makeRequest<JsonApiDocument<LibraryEntryResource[]>>("/library-entries", {
+    query: {
+      "filter[user_id]": userId,
+      "filter[kind]": "manga",
+      "filter[manga_id]": mangaId,
+      "page[limit]": 1,
     },
-  );
+  });
   return doc.data[0];
 }
 
@@ -92,12 +77,9 @@ export async function getMangaSummary(
   );
   const { chapterCount } = doc.data.attributes;
   return {
-    title: parsePrimaryTitle(doc.data.attributes),
+    title: manga.parsePrimaryTitle(doc.data.attributes),
     // Series that are still running have no known total.
-    chapterCount:
-      typeof chapterCount === "number" && chapterCount > 0
-        ? chapterCount
-        : undefined,
+    chapterCount: typeof chapterCount === "number" && chapterCount > 0 ? chapterCount : undefined,
   };
 }
 
@@ -125,27 +107,24 @@ export async function saveLibraryEntry(
     return entryId;
   }
 
-  const { userId } = requireSession();
-  const doc = await makeRequest<JsonApiDocument<LibraryEntryResource>>(
-    "/library-entries",
-    {
-      method: "POST",
-      body: {
-        data: {
-          type: "libraryEntries",
-          attributes: {
-            ...changes,
-            status: changes.status ?? newEntryStatus(changes.progress),
-            progress: changes.progress ?? 0,
-          },
-          relationships: {
-            user: { data: { type: "users", id: userId } },
-            media: { data: { type: "manga", id: mangaId } },
-          },
+  const { userId } = session.requireSession();
+  const doc = await makeRequest<JsonApiDocument<LibraryEntryResource>>("/library-entries", {
+    method: "POST",
+    body: {
+      data: {
+        type: "libraryEntries",
+        attributes: {
+          ...changes,
+          status: changes.status ?? newEntryStatus(changes.progress),
+          progress: changes.progress ?? 0,
+        },
+        relationships: {
+          user: { data: { type: "users", id: userId } },
+          media: { data: { type: "manga", id: mangaId } },
         },
       },
     },
-  );
+  });
   return doc.data.id;
 }
 
@@ -154,9 +133,7 @@ export async function saveLibraryEntry(
  * (prologues) and sometimes garbage; reduce all of that to a safe integer.
  */
 function toProgress(chapterNum: number): number {
-  return Number.isFinite(chapterNum) && chapterNum > 0
-    ? Math.floor(chapterNum)
-    : 0;
+  return Number.isFinite(chapterNum) && chapterNum > 0 ? Math.floor(chapterNum) : 0;
 }
 
 /**
@@ -164,10 +141,7 @@ function toProgress(chapterNum: number): number {
  * the user's progress, but progress never goes down and never exceeds the
  * series' chapter count (Kitsu rejects anything higher).
  */
-export async function syncReadChapters(
-  mangaId: string,
-  chapterNums: number[],
-): Promise<void> {
+export async function syncReadChapters(mangaId: string, chapterNums: number[]): Promise<void> {
   const logPrefix = "[syncReadChapters]";
 
   const entry = await findLibraryEntry(mangaId);
@@ -192,9 +166,7 @@ export async function syncReadChapters(
   const advance = entry == null || target > current;
 
   if (!advance && status === undefined) {
-    console.log(
-      `${logPrefix} ${mangaId}: already at ${current}, nothing to do`,
-    );
+    console.log(`${logPrefix} ${mangaId}: already at ${current}, nothing to do`);
     return;
   }
 
@@ -214,4 +186,35 @@ export async function syncReadChapters(
     ...changes,
     ...autoDates(entry?.attributes, changes),
   });
+}
+
+/** Kitsu timestamp to `YYYY-MM-DD` (UTC), or "" when the date is not set. */
+export function toDateText(iso: string | null | undefined): string {
+  return iso?.slice(0, 10) ?? "";
+}
+
+/** `YYYY-MM-DD` to a Kitsu timestamp; "" gives null, which clears the date. */
+export function parseDateText(text: string): string | null {
+  const trimmed = text.trim();
+  if (trimmed === "") {
+    return null;
+  }
+  const date = new Date(`${trimmed}T00:00:00Z`);
+  // Comparing back rejects dates JS would roll over, like 2026-02-31.
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(trimmed) ||
+    Number.isNaN(date.getTime()) ||
+    date.toISOString().slice(0, 10) !== trimmed
+  ) {
+    throw new Error(`"${trimmed}" is not a date. Use YYYY-MM-DD.`);
+  }
+  return date.toISOString();
+}
+
+/** Today on the user's own calendar, as a Kitsu timestamp. */
+export function todayTimestamp(): string {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}T00:00:00.000Z`;
 }

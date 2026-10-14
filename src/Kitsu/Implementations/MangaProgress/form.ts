@@ -11,16 +11,17 @@ import {
 } from "@paperback/types";
 
 import { logError } from "../../Services/log";
-import type { LibraryStatus } from "../../Services/models";
 import {
   autoDates,
   findLibraryEntry,
   getMangaSummary,
   newEntryStatus,
+  parseDateText,
   saveLibraryEntry,
+  toDateText,
   type LibraryChanges,
 } from "../Shared/library";
-import { parseDateText, toDateText } from "../Shared/parser";
+import type { LibraryStatus } from "../Shared/models/main";
 
 // Running series have no known chapter total; give the stepper a high ceiling.
 const MAX_CHAPTERS_WHEN_UNKNOWN = 99999;
@@ -89,11 +90,7 @@ export class MangaProgressForm extends Form {
 
   override getSections() {
     if (this.loading) {
-      return [
-        Section({ id: "loading" }, [
-          LabelRow("loading", { title: "Loading..." }),
-        ]),
-      ];
+      return [Section({ id: "loading" }, [LabelRow("loading", { title: "Loading..." })])];
     }
 
     if (this.error != null) {
@@ -121,8 +118,7 @@ export class MangaProgressForm extends Form {
           // Like SelectRow, but nothing is selected while the title has no list.
           NavigationRow("status", {
             title: "List",
-            value:
-              this.status != null ? STATUS_LABELS[this.status] : "Not selected",
+            value: this.status != null ? STATUS_LABELS[this.status] : "Not selected",
             form: new SelectForm("List", {
               title: "List",
               value: this.status != null ? [this.status] : [],
@@ -131,10 +127,7 @@ export class MangaProgressForm extends Form {
               maxItemCount: 1,
               layout: "list",
               items: STATUS_ITEMS,
-              onValueChange: Application.Selector(
-                this as MangaProgressForm,
-                "setStatus",
-              ),
+              onValueChange: Application.Selector(this as MangaProgressForm, "setStatus"),
             }),
           }),
         ],
@@ -148,10 +141,7 @@ export class MangaProgressForm extends Form {
           maxValue: this.chapterCount ?? MAX_CHAPTERS_WHEN_UNKNOWN,
           stepValue: 1,
           loopOver: false,
-          onValueChange: Application.Selector(
-            this as MangaProgressForm,
-            "setChapter",
-          ),
+          onValueChange: Application.Selector(this as MangaProgressForm, "setChapter"),
         }),
         StepperRow("volumes", {
           title: "Volumes owned",
@@ -161,10 +151,7 @@ export class MangaProgressForm extends Form {
           maxValue: MAX_COUNT,
           stepValue: 1,
           loopOver: false,
-          onValueChange: Application.Selector(
-            this as MangaProgressForm,
-            "setVolumes",
-          ),
+          onValueChange: Application.Selector(this as MangaProgressForm, "setVolumes"),
         }),
         StepperRow("rereads", {
           title: "Reread count",
@@ -174,10 +161,7 @@ export class MangaProgressForm extends Form {
           maxValue: MAX_COUNT,
           stepValue: 1,
           loopOver: false,
-          onValueChange: Application.Selector(
-            this as MangaProgressForm,
-            "setRereads",
-          ),
+          onValueChange: Application.Selector(this as MangaProgressForm, "setRereads"),
         }),
       ]),
       Section(
@@ -190,18 +174,12 @@ export class MangaProgressForm extends Form {
           InputRow("startedAt", {
             title: "Started",
             value: this.startedAt,
-            onValueChange: Application.Selector(
-              this as MangaProgressForm,
-              "setStartedAt",
-            ),
+            onValueChange: Application.Selector(this as MangaProgressForm, "setStartedAt"),
           }),
           InputRow("finishedAt", {
             title: "Finished",
             value: this.finishedAt,
-            onValueChange: Application.Selector(
-              this as MangaProgressForm,
-              "setFinishedAt",
-            ),
+            onValueChange: Application.Selector(this as MangaProgressForm, "setFinishedAt"),
           }),
         ],
       ),

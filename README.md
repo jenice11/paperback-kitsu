@@ -1,4 +1,4 @@
-# Kitsu Tracker Extenstion
+# Kitsu Tracker Extension
 
 Paperback 0.9 tracker extension for [kitsu.app](https://kitsu.app). It syncs your
 **manga reading progress (chapter number)**.
@@ -18,7 +18,7 @@ Paperback 0.9 tracker extension for [kitsu.app](https://kitsu.app). It syncs you
 - Access and refresh tokens live only in Paperback's secure state and in the
   `Authorization` header; they are never put in URLs.
 - Anything not written by this extension (server error bodies, errors from the host
-  runtime) is passed through `redact()` in `Implementations/Shared/log.ts` before it
+  runtime) is passed through `redact()` in `Services/log.ts` before it
   is logged or shown in the UI, so a server or runtime that echoes a secret back
   won't leak it.
 

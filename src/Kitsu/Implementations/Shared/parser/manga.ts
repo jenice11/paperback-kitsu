@@ -2,7 +2,7 @@
 
 import { ContentRating, type MangaInfo, type SearchResultItem } from "@paperback/types";
 
-import type { KitsuImage, MangaAttributes, MangaResource } from "../../Services/models";
+import type { KitsuImage, MangaAttributes, MangaResource } from "../models/main";
 
 const SITE_URL = "https://kitsu.app";
 const UNKNOWN_TITLE = "Unknown";
@@ -106,35 +106,4 @@ export function parseSearchResult(manga: MangaResource): SearchResultItem {
     imageUrl: pickImage(a.posterImage, ["medium", "small", "large", "original"]),
     contentRating: parseContentRating(a),
   };
-}
-
-/** Kitsu timestamp to `YYYY-MM-DD` (UTC), or "" when the date is not set. */
-export function toDateText(iso: string | null | undefined): string {
-  return iso?.slice(0, 10) ?? "";
-}
-
-/** `YYYY-MM-DD` to a Kitsu timestamp; "" gives null, which clears the date. */
-export function parseDateText(text: string): string | null {
-  const trimmed = text.trim();
-  if (trimmed === "") {
-    return null;
-  }
-  const date = new Date(`${trimmed}T00:00:00Z`);
-  // Comparing back rejects dates JS would roll over, like 2026-02-31.
-  if (
-    !/^\d{4}-\d{2}-\d{2}$/.test(trimmed) ||
-    Number.isNaN(date.getTime()) ||
-    date.toISOString().slice(0, 10) !== trimmed
-  ) {
-    throw new Error(`"${trimmed}" is not a date. Use YYYY-MM-DD.`);
-  }
-  return date.toISOString();
-}
-
-/** Today on the user's own calendar, as a Kitsu timestamp. */
-export function todayTimestamp(): string {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${now.getFullYear()}-${month}-${day}T00:00:00.000Z`;
 }

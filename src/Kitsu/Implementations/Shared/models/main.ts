@@ -46,8 +46,7 @@ export interface MangaAttributes {
 }
 export type MangaResource = JsonApiResource<MangaAttributes>;
 
-export type LibraryStatus =
-  "current" | "planned" | "completed" | "on_hold" | "dropped";
+export type LibraryStatus = "current" | "planned" | "completed" | "on_hold" | "dropped";
 
 interface LibraryEntryAttributes {
   status?: LibraryStatus;

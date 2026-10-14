@@ -10,8 +10,8 @@ import {
   Section,
 } from "@paperback/types";
 
-import { login } from "../../Services/requests";
-import { clearSession, getSession } from "../../Services/session";
+import { login } from "../../Services/Requests";
+import { session } from "../Shared/parser/main";
 
 interface LoginInput {
   username: string;
@@ -84,8 +84,8 @@ class LoginForm extends Form {
 
 export class SettingsForm extends Form {
   override getSections() {
-    const session = getSession();
-    return session == null ? this.unauthenticatedView() : this.getProfileSection(session.username);
+    const current = session.getSession();
+    return current == null ? this.unauthenticatedView() : this.getProfileSection(current.username);
   }
 
   private unauthenticatedView(): ListSectionElement[] {
@@ -121,7 +121,7 @@ export class SettingsForm extends Form {
   }
 
   async logOut(): Promise<void> {
-    clearSession();
+    session.clearSession();
     this.reloadForm();
   }
 }

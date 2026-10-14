@@ -1,33 +1,26 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
-import {
-  BasicRateLimiter,
-  type Extension,
-  type Form,
-  type MangaProgressProviding,
-  type Metadata,
-  type SearchQuery,
-  type SearchResultsProviding,
-  type SettingsFormProviding,
-  type SourceManga,
-  type TrackedMangaChapterReadAction,
-} from "@paperback/types";
+import { BasicRateLimiter, type Extension } from "@paperback/types";
 
-import { getMangaDetails } from "./Implementations/Manga/main";
-import {
-  getMangaProgress,
-  getMangaProgressManagementForm,
-  processChapterReadActionQueue,
-} from "./Implementations/MangaProgress/main";
-import { getSearchResults } from "./Implementations/SearchResults/main";
-import { SettingsForm } from "./Implementations/SettingsForm/form";
+import { applyMixins } from "./Implementations/helper";
+import { MangaImplementation } from "./Implementations/Manga/main";
+import { MangaProgressImplementation } from "./Implementations/MangaProgress/main";
+import { SearchResultsImplementation } from "./Implementations/SearchResults/main";
+import { SettingsFormImplementation } from "./Implementations/SettingsForm/main";
 
-// The host calls these methods on the extension object; the logic lives in
-// plain functions next to the screens that use it.
-class KitsuExtension
-  implements Extension, SearchResultsProviding, SettingsFormProviding, MangaProgressProviding
-{
-  private readonly mainRateLimiter = new BasicRateLimiter("main", {
+// The feature classes are copied onto the extension at runtime by applyMixins;
+// merging this interface into the class is how the type checker learns about
+// them. Safe: they only add methods, no fields that need initialising.
+// oxlint-disable-next-line typescript/no-unsafe-declaration-merging
+export interface KitsuExtension
+  extends
+    MangaImplementation,
+    MangaProgressImplementation,
+    SearchResultsImplementation,
+    SettingsFormImplementation {}
+
+export class KitsuExtension implements Extension {
+  mainRateLimiter = new BasicRateLimiter("main", {
     numberOfRequests: 4,
     bufferInterval: 1,
     ignoreImages: true,
@@ -36,30 +29,13 @@ class KitsuExtension
   async initialise(): Promise<void> {
     this.mainRateLimiter.registerInterceptor();
   }
-
-  async getSettingsForm(): Promise<Form> {
-    return new SettingsForm();
-  }
-
-  getMangaDetails(mangaId: string) {
-    return getMangaDetails(mangaId);
-  }
-
-  getSearchResults(query: SearchQuery<Metadata>, metadata: Metadata | undefined) {
-    return getSearchResults(query, metadata);
-  }
-
-  getMangaProgressManagementForm(sourceManga: SourceManga) {
-    return getMangaProgressManagementForm(sourceManga);
-  }
-
-  getMangaProgress(sourceManga: SourceManga) {
-    return getMangaProgress(sourceManga);
-  }
-
-  processChapterReadActionQueue(actions: TrackedMangaChapterReadAction[]) {
-    return processChapterReadActionQueue(actions);
-  }
 }
+
+applyMixins(KitsuExtension, [
+  MangaImplementation,
+  MangaProgressImplementation,
+  SearchResultsImplementation,
+  SettingsFormImplementation,
+]);
 
 export const Kitsu = new KitsuExtension();
