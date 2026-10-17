@@ -8,6 +8,7 @@ import {
   Section,
   SelectForm,
   StepperRow,
+  ToggleRow,
 } from "@paperback/types";
 
 import { logError } from "../../Services/log";
@@ -60,6 +61,10 @@ export class MangaProgressForm extends Form {
   initialStatus: LibraryStatus | undefined;
   initialRating: number | null = null;
   rating: number | null = null;
+  initialPrivate = false;
+  isPrivate = false;
+  initialNotes = "";
+  notes = "";
 
   initialChapter = 0;
   chapter = 0;
@@ -141,6 +146,11 @@ export class MangaProgressForm extends Form {
             loopOver: false,
             onValueChange: Application.Selector(this as MangaProgressForm, "setRating"),
           }),
+          ToggleRow("private", {
+            title: "Private",
+            value: this.isPrivate,
+            onValueChange: Application.Selector(this as MangaProgressForm, "setPrivate"),
+          }),
         ],
       ),
       Section({ id: "progress", header: "Progress" }, [
@@ -194,6 +204,13 @@ export class MangaProgressForm extends Form {
           }),
         ],
       ),
+      Section({ id: "notes", header: "Notes" }, [
+        InputRow("notes", {
+          title: "Notes",
+          value: this.notes,
+          onValueChange: Application.Selector(this as MangaProgressForm, "setNotes"),
+        }),
+      ]),
     ];
   }
 
@@ -204,6 +221,16 @@ export class MangaProgressForm extends Form {
 
   async setVolumes(volumes: number): Promise<void> {
     this.volumes = volumes;
+    this.reloadForm();
+  }
+
+  async setPrivate(value: boolean): Promise<void> {
+    this.isPrivate = value;
+    this.reloadForm();
+  }
+
+  async setNotes(value: string): Promise<void> {
+    this.notes = value;
     this.reloadForm();
   }
 
@@ -251,6 +278,10 @@ export class MangaProgressForm extends Form {
       this.initialStatus = this.status;
       this.initialRating = entry?.attributes.ratingTwenty ?? null;
       this.rating = this.initialRating;
+      this.initialPrivate = entry?.attributes.private ?? false;
+      this.isPrivate = this.initialPrivate;
+      this.initialNotes = entry?.attributes.notes ?? "";
+      this.notes = this.initialNotes;
       this.initialChapter = entry?.attributes.progress ?? 0;
       this.chapter = this.initialChapter;
       this.initialVolumes = entry?.attributes.volumesOwned ?? 0;
@@ -290,6 +321,12 @@ export class MangaProgressForm extends Form {
     if (this.rating !== this.initialRating) {
       changes.ratingTwenty = this.rating;
     }
+    if (this.isPrivate !== this.initialPrivate) {
+      changes.private = this.isPrivate;
+    }
+    if (this.notes.trim() !== this.initialNotes.trim()) {
+      changes.notes = this.notes.trim() === "" ? null : this.notes.trim();
+    }
     // Parsing throws on a bad date, before anything is sent.
     if (this.startedAt.trim() !== this.initialStartedAt) {
       changes.startedAt = parseDateText(this.startedAt);
@@ -316,6 +353,8 @@ export class MangaProgressForm extends Form {
     this.status ??= changes.status ?? newEntryStatus(changes.progress);
     this.initialStatus = this.status;
     this.initialRating = this.rating;
+    this.initialPrivate = this.isPrivate;
+    this.initialNotes = this.notes;
     // Show dates as Kitsu has them now, filled-in ones included.
     if (changes.startedAt !== undefined) {
       this.startedAt = toDateText(changes.startedAt);

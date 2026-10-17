@@ -58,6 +58,8 @@ interface LibraryEntryAttributes {
   reconsumeCount?: number;
   /** 2 to 20, shown by Kitsu as 1 to 10; null when not rated. */
   ratingTwenty?: number | null;
+  notes?: string | null;
+  private?: boolean;
   startedAt?: string | null;
   finishedAt?: string | null;
 }

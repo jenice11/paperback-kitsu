@@ -22,6 +22,9 @@ export interface LibraryChanges {
   reconsumeCount?: number;
   /** 2 to 20 (1 to 10 in half steps); null clears the rating. */
   ratingTwenty?: number | null;
+  /** Null clears the notes. */
+  notes?: string | null;
+  private?: boolean;
   /** Kitsu timestamps; null clears the date. */
   startedAt?: string | null;
   finishedAt?: string | null;
