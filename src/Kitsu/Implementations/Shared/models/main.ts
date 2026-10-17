@@ -56,6 +56,8 @@ interface LibraryEntryAttributes {
   volumesOwned?: number;
   /** How many times the user has reread the title. */
   reconsumeCount?: number;
+  /** 2 to 20, shown by Kitsu as 1 to 10; null when not rated. */
+  ratingTwenty?: number | null;
   startedAt?: string | null;
   finishedAt?: string | null;
 }

@@ -58,6 +58,8 @@ export class MangaProgressForm extends Form {
   /** The list the user has picked; undefined until known or picked. */
   status: LibraryStatus | undefined;
   initialStatus: LibraryStatus | undefined;
+  initialRating: number | null = null;
+  rating: number | null = null;
 
   initialChapter = 0;
   chapter = 0;
@@ -129,6 +131,15 @@ export class MangaProgressForm extends Form {
               items: STATUS_ITEMS,
               onValueChange: Application.Selector(this as MangaProgressForm, "setStatus"),
             }),
+          }),
+          StepperRow("rating", {
+            title: "Rating",
+            value: (this.rating ?? 0) / 2,
+            minValue: 0,
+            maxValue: 10,
+            stepValue: 1,
+            loopOver: false,
+            onValueChange: Application.Selector(this as MangaProgressForm, "setRating"),
           }),
         ],
       ),
@@ -217,6 +228,13 @@ export class MangaProgressForm extends Form {
     this.reloadForm();
   }
 
+  async setRating(value: number): Promise<void> {
+    // Kitsu stores a rating as 2 to 20 and shows it as 1 to 10; 0 clears it.
+    const ratingTwenty = Math.min(Math.round(value * 2), 20);
+    this.rating = ratingTwenty >= 2 ? ratingTwenty : null;
+    this.reloadForm();
+  }
+
   private async loadData(): Promise<void> {
     const logPrefix = "[loadProgressData]";
     try {
@@ -231,6 +249,8 @@ export class MangaProgressForm extends Form {
       this.entryId = entry?.id;
       this.status = entry?.attributes.status;
       this.initialStatus = this.status;
+      this.initialRating = entry?.attributes.ratingTwenty ?? null;
+      this.rating = this.initialRating;
       this.initialChapter = entry?.attributes.progress ?? 0;
       this.chapter = this.initialChapter;
       this.initialVolumes = entry?.attributes.volumesOwned ?? 0;
@@ -267,6 +287,9 @@ export class MangaProgressForm extends Form {
     if (this.status != null && this.status !== this.initialStatus) {
       changes.status = this.status;
     }
+    if (this.rating !== this.initialRating) {
+      changes.ratingTwenty = this.rating;
+    }
     // Parsing throws on a bad date, before anything is sent.
     if (this.startedAt.trim() !== this.initialStartedAt) {
       changes.startedAt = parseDateText(this.startedAt);
@@ -292,6 +315,7 @@ export class MangaProgressForm extends Form {
     // A new entry went onto the default list when no other was picked.
     this.status ??= changes.status ?? newEntryStatus(changes.progress);
     this.initialStatus = this.status;
+    this.initialRating = this.rating;
     // Show dates as Kitsu has them now, filled-in ones included.
     if (changes.startedAt !== undefined) {
       this.startedAt = toDateText(changes.startedAt);
