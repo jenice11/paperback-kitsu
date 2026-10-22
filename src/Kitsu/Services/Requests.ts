@@ -110,7 +110,7 @@ export async function login(username: string, password: string): Promise<session
   } catch (e) {
     console.log(`${logPrefix} token request failed`);
     if (e instanceof TokenError && e.code === "invalid_grant") {
-      throw new Error("Incorrect username or password");
+      throw new Error("Incorrect email or password");
     }
     throw new Error("Unable to log in to Kitsu, please try again later");
   }

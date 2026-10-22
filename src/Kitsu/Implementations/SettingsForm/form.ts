@@ -38,11 +38,11 @@ class LoginForm extends Form {
           id: "login-section",
           header: "Log in",
           footer:
-            "Use your Kitsu email (or username) and password. Your password is only sent to Kitsu to get an access token and is never stored by this extension.",
+            "Use your Kitsu email and password. Your password is only sent to Kitsu to get an access token and is never stored by this extension.",
         },
         [
           InputRow("username-input", {
-            title: "Email or username",
+            title: "Email",
             value: this.loginForm.username,
             onValueChange: Application.Selector(this as LoginForm, "onUsernameChange"),
           }),
