@@ -47,6 +47,22 @@ function isLibraryStatus(id: string): id is LibraryStatus {
   return Object.hasOwn(STATUS_LABELS, id);
 }
 
+// Paperback shows a row value on one line, so the full list lives on its own screen.
+class AlternativeTitlesForm extends Form {
+  constructor(private readonly titles: string[]) {
+    super();
+  }
+
+  override getSections() {
+    return [
+      Section(
+        { id: "titles" },
+        this.titles.map((title, i) => LabelRow(`title${i}`, { title })),
+      ),
+    ];
+  }
+}
+
 export class MangaProgressForm extends Form {
   override requiresExplicitSubmission = true;
 
@@ -54,6 +70,9 @@ export class MangaProgressForm extends Form {
   error: Error | undefined;
 
   title = "";
+  alternativeTitles: string[] = [];
+  mangaStatus: string | undefined;
+  published: string | undefined;
   chapterCount: number | undefined;
   entryId: string | undefined;
   /** The list the user has picked; undefined until known or picked. */
@@ -111,6 +130,21 @@ export class MangaProgressForm extends Form {
     return [
       Section({ id: "information", header: "Information" }, [
         LabelRow("title", { title: "Title", value: this.title }),
+        ...(this.alternativeTitles.length > 0
+          ? [
+              NavigationRow("alternativeTitles", {
+                title: "Alternative titles",
+                value: `${this.alternativeTitles.length} ${this.alternativeTitles.length === 1 ? "title" : "titles"}`,
+                form: new AlternativeTitlesForm(this.alternativeTitles),
+              }),
+            ]
+          : []),
+        ...(this.mangaStatus
+          ? [LabelRow("mangaStatus", { title: "Status", value: this.mangaStatus })]
+          : []),
+        ...(this.published
+          ? [LabelRow("published", { title: "Published", value: this.published })]
+          : []),
       ]),
       Section(
         {
@@ -271,6 +305,9 @@ export class MangaProgressForm extends Form {
       ]);
 
       this.title = summary.title;
+      this.alternativeTitles = summary.alternativeTitles;
+      this.mangaStatus = summary.status;
+      this.published = summary.published;
       this.chapterCount = summary.chapterCount;
 
       this.entryId = entry?.id;

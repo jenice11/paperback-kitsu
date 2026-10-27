@@ -17,13 +17,21 @@ function parseContentRating(attributes: MangaAttributes): ContentRating {
   return ContentRating.EVERYONE;
 }
 
-/** Canonical title first, then every other distinct title Kitsu knows about. */
+/**
+ * English title first, then the canonical title, then every
+ * other distinct title in any language, then the abbreviated titles.
+ */
 function parseTitles(attributes: MangaAttributes): string[] {
   const all = [
-    attributes.canonicalTitle,
     attributes.titles?.en,
+    attributes.titles?.en_us,
+    attributes.canonicalTitle,
     attributes.titles?.en_jp,
+    attributes.titles?.en_kr,
+    attributes.titles?.en_cn,
     attributes.titles?.ja_jp,
+    // Other locales too (ko_kr, zh_cn, ...), for manhwa and manhua.
+    ...Object.values(attributes.titles ?? {}),
     ...(attributes.abbreviatedTitles ?? []),
   ].filter((title): title is string => typeof title === "string" && title.trim().length > 0);
 
@@ -60,6 +68,15 @@ function parseStatus(status: string | null | undefined): string {
   }
 }
 
+/** `2018-04-01 to 2023-07-15`, or just `2018-04-01` while it runs; undefined without a start date. */
+function parsePublished(attributes: MangaAttributes): string | undefined {
+  const { startDate, endDate } = attributes;
+  if (!startDate) {
+    return undefined;
+  }
+  return endDate ? `${startDate} to ${endDate}` : startDate;
+}
+
 export function parseMangaInfo(manga: MangaResource): MangaInfo {
   const a = manga.attributes;
 
@@ -75,6 +92,10 @@ export function parseMangaInfo(manga: MangaResource): MangaInfo {
   }
   if (a.volumeCount) {
     additionalInfo["Volumes"] = String(a.volumeCount);
+  }
+  const published = parsePublished(a);
+  if (published) {
+    additionalInfo["Published"] = published;
   }
   if (a.serialization) {
     additionalInfo["Serialization"] = a.serialization;

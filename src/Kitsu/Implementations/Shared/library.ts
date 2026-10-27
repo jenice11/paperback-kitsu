@@ -68,21 +68,30 @@ export async function findLibraryEntry(mangaId: string): Promise<LibraryEntryRes
 }
 
 /** What the progress screens need to know about a series. */
-export async function getMangaSummary(
-  mangaId: string,
-): Promise<{ title: string; chapterCount: number | undefined }> {
+export async function getMangaSummary(mangaId: string): Promise<{
+  title: string;
+  alternativeTitles: string[];
+  status: string | undefined;
+  published: string | undefined;
+  chapterCount: number | undefined;
+}> {
   const doc = await makeRequest<JsonApiDocument<MangaResource>>(
     `/manga/${encodeURIComponent(mangaId)}`,
     {
       auth: "optional",
       query: {
-        "fields[manga]": "canonicalTitle,titles,abbreviatedTitles,chapterCount",
+        "fields[manga]":
+          "canonicalTitle,titles,abbreviatedTitles,status,startDate,endDate,chapterCount",
       },
     },
   );
   const { chapterCount } = doc.data.attributes;
+  const info = manga.parseMangaInfo(doc.data);
   return {
-    title: manga.parsePrimaryTitle(doc.data.attributes),
+    title: info.primaryTitle,
+    alternativeTitles: info.secondaryTitles,
+    status: info.status,
+    published: info.additionalInfo?.["Published"],
     // Series that are still running have no known total.
     chapterCount: typeof chapterCount === "number" && chapterCount > 0 ? chapterCount : undefined,
   };

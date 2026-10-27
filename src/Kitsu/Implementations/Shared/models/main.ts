@@ -43,6 +43,9 @@ export interface MangaAttributes {
   volumeCount?: number | null;
   posterImage?: KitsuImage | null;
   serialization?: string | null;
+  /** YYYY-MM-DD */
+  startDate?: string | null;
+  endDate?: string | null;
 }
 export type MangaResource = JsonApiResource<MangaAttributes>;
 
