@@ -14,6 +14,24 @@ export function newEntryStatus(progress = 0): LibraryStatus {
   return progress > 0 ? "current" : "planned";
 }
 
+/**
+ * Auto complete: a series Kitsu lists as finished, whose last chapter is now
+ * read, moves to Completed. Only titles that are new or on Currently reading
+ * or Plan to read move: Dropped, On hold and Completed are the user's choice,
+ * and a series with no known chapter total (still running) never completes.
+ */
+export function shouldAutoComplete(
+  entryStatus: LibraryStatus | undefined,
+  progress: number,
+  series: { finished: boolean; chapterCount: number | undefined },
+): boolean {
+  const movable =
+    entryStatus === undefined || entryStatus === "current" || entryStatus === "planned";
+  return (
+    movable && series.finished && series.chapterCount != null && progress >= series.chapterCount
+  );
+}
+
 /** The parts of a library entry the user can change. */
 export interface LibraryChanges {
   progress?: number;
@@ -72,6 +90,8 @@ export async function getMangaSummary(mangaId: string): Promise<{
   title: string;
   alternativeTitles: string[];
   status: string | undefined;
+  /** Kitsu lists the series as finished (not just "Finished" text). */
+  finished: boolean;
   published: string | undefined;
   chapterCount: number | undefined;
 }> {
@@ -85,12 +105,13 @@ export async function getMangaSummary(mangaId: string): Promise<{
       },
     },
   );
-  const { chapterCount } = doc.data.attributes;
+  const { chapterCount, status } = doc.data.attributes;
   const info = manga.parseMangaInfo(doc.data);
   return {
     title: info.primaryTitle,
     alternativeTitles: info.secondaryTitles,
     status: info.status,
+    finished: status === "finished",
     published: info.additionalInfo?.["Published"],
     // Series that are still running have no known total.
     chapterCount: typeof chapterCount === "number" && chapterCount > 0 ? chapterCount : undefined,
@@ -162,21 +183,26 @@ export async function syncReadChapters(mangaId: string, chapterNums: number[]): 
   const current = entry?.attributes.progress ?? 0;
 
   let target = Math.max(...chapterNums.map(toProgress));
+  let series: Awaited<ReturnType<typeof getMangaSummary>> | undefined;
   // Only ask for the chapter count when the write could happen at all.
   if (entry == null || target > current) {
-    const { chapterCount } = await getMangaSummary(mangaId);
-    if (chapterCount != null) {
-      target = Math.min(target, chapterCount);
+    series = await getMangaSummary(mangaId);
+    if (series.chapterCount != null) {
+      target = Math.min(target, series.chapterCount);
     }
   }
 
   // Chapters read take a title off Plan to read; other lists are the user's choice.
-  const status =
+  let status: LibraryStatus | undefined =
     entry == null
       ? newEntryStatus(target)
       : entry.attributes.status === "planned" && Math.max(target, current) > 0
         ? "current"
         : undefined;
+  // Last chapter of a finished series read: Completed, with a finish date from autoDates.
+  if (series != null && shouldAutoComplete(entry?.attributes.status, target, series)) {
+    status = "completed";
+  }
   const advance = entry == null || target > current;
 
   if (!advance && status === undefined) {

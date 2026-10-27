@@ -19,6 +19,7 @@ import {
   newEntryStatus,
   parseDateText,
   saveLibraryEntry,
+  shouldAutoComplete,
   toDateText,
   type LibraryChanges,
 } from "../Shared/library";
@@ -71,6 +72,7 @@ export class MangaProgressForm extends Form {
 
   title = "";
   alternativeTitles: string[] = [];
+  mangaFinished = false;
   mangaStatus: string | undefined;
   published: string | undefined;
   chapterCount: number | undefined;
@@ -309,6 +311,7 @@ export class MangaProgressForm extends Form {
       this.mangaStatus = summary.status;
       this.published = summary.published;
       this.chapterCount = summary.chapterCount;
+      this.mangaFinished = summary.finished;
 
       this.entryId = entry?.id;
       this.status = entry?.attributes.status;
@@ -378,6 +381,17 @@ export class MangaProgressForm extends Form {
     // Kitsu may have changed since the form opened: use its entry as it is now.
     const latest = await findLibraryEntry(this.mangaId);
     this.entryId = latest?.id;
+    // Last chapter of a finished series saved with no list picked: Completed.
+    if (
+      changes.status === undefined &&
+      changes.progress !== undefined &&
+      shouldAutoComplete(latest?.attributes.status, changes.progress, {
+        finished: this.mangaFinished,
+        chapterCount: this.chapterCount,
+      })
+    ) {
+      changes.status = "completed";
+    }
     Object.assign(changes, autoDates(latest?.attributes, changes));
 
     console.log(`${logPrefix} ${this.mangaId}: ${JSON.stringify(changes)}`);
@@ -387,7 +401,7 @@ export class MangaProgressForm extends Form {
     this.initialVolumes = this.volumes;
     this.initialRereads = this.rereads;
     // A new entry went onto the default list when no other was picked.
-    this.status ??= changes.status ?? newEntryStatus(changes.progress);
+    this.status = changes.status ?? this.status ?? newEntryStatus(changes.progress);
     this.initialStatus = this.status;
     this.initialRating = this.rating;
     this.initialPrivate = this.isPrivate;
